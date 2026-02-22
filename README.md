@@ -1,106 +1,52 @@
-# 📚 Kuis SD – Aplikasi Quiz untuk Sekolah Dasar
+# 🎓 Kuis Pintar - Platform Kuis Pembelajaran Profesional
 
-Proyek ini adalah aplikasi **Kuis Interaktif** berbasis web untuk anak Sekolah Dasar.  
-Guru/Admin dapat mengelola soal, kategori, dan paket pelajaran.  
-Siswa dapat mengerjakan kuis dengan tampilan menarik, animasi, dan suara feedback.
+**Kuis Pintar** adalah aplikasi kuis interaktif yang dirancang untuk mendukung pembelajaran di berbagai jenjang sekolah (SD, SMP, SMA). Aplikasi ini mendukung mode publik (Guest) untuk latihan mandiri dan mode terkendali (Internal) untuk keperluan ujian sekolah (CBT).
 
 ---
 
-## ✨ Fitur
+## ✨ Fitur Utama
 
-### 🎓 Frontend (Siswa)
-- Sidebar kategori pelajaran (Matematika, Bahasa Indonesia, dll).
-- Tiap kategori punya paket soal (contoh: Paket A, B, C).
-- Soal ditampilkan dalam **card 2 kolom** agar nyaman dibaca anak-anak.
-- Pilihan jawaban **langsung pindah ke soal berikutnya** (tanpa tombol "Next").
-- Suara feedback: benar ✅ atau salah ❌.
-- Nilai akhir ditampilkan dengan animasi mantul-mantul.
-- Dukungan **MathJax** untuk menampilkan rumus matematika.
+### 🛡️ Sistem Role & Keamanan
+*   **7 Role Pengguna**: Administrator, Guru (SD/SMP/SMA), dan Murid (SD/SMP/SMA).
+*   **Akses Terpilih (Targeting)**: Konten dapat ditargetkan khusus untuk Tamu (`guest`), Siswa Login (`internal`), atau keduanya.
+*   **Isolasi Konten**: Guru hanya dapat mengelola konten sesuai jenjangnya (SD/SMP/SMA).
 
-### 🛠 Backend (Admin)
-- Kelola **Kategori** (tambah, edit, hapus).
-- Kelola **Paket** (tambah, edit, hapus).
-- Kelola **Soal** (tambah, edit, hapus).
-- Form soal mendukung input rumus matematika.
-- Tampilan admin menggunakan layout sama dengan frontend (sidebar + konten utama).
-- Semua data tersimpan di **MySQL**.
+### 📖 Pengalaman Siswa (CBT Ready)
+*   **Multi-Jenjang**: Pemilih jenjang di halaman utama untuk memfilter mata pelajaran yang relevan.
+*   **Shuffle Logic**: Pengacakan urutan soal dan pilihan jawaban untuk mencegah kecurangan.
+*   **Timer Kontrol**: Batasan waktu pengerjaan yang diatur langsung oleh Guru/Admin.
+*   **Pembahasan (Review Mode)**: Siswa dapat melihat penjelasan (`explanation`) setelah kuis selesai.
+
+### 🛠️ Manajemen Konten (Admin)
+*   **Bank Soal Multimedia**: Dukungan gambar pada soal melalui kolom `image_url`.
+*   **Import/Export JSON**: Alur kerja cepat menggunakan sistem Paste JSON atau Upload File JSON.
+*   **Dukungan MathJax**: Menampilkan rumus matematika yang kompleks dengan rapi.
+*   **Analitik Guru**: Laporan soal yang paling sering dijawab salah untuk evaluasi materi.
 
 ---
 
 ## 🏗️ Teknologi yang Digunakan
 
-- **Frontend**:  
-  - HTML5, CSS3, JavaScript (modular, tanpa inline code).  
-  - [Bootstrap](https://getbootstrap.com/) untuk layout dan komponen.  
-  - [Font Awesome](https://fontawesome.com/) untuk ikon.  
-  - [GSAP](https://greensock.com/gsap/) untuk animasi.  
-  - [MathJax](https://www.mathjax.org/) untuk notasi matematika.
-
-- **Backend**:  
-  - PHP 8+  
-  - MySQL/MariaDB  
-  - PDO untuk koneksi database
-
-- **Lingkungan Lokal**:  
-  - [Laragon](https://laragon.org/) (direkomendasikan) atau XAMPP.
-
-
-## 📂 Struktur Folder
-
-| Path / File                 | Keterangan                              |
-|-----------------------------|-----------------------------------------|
-| `index.php`                 | Halaman utama (siswa)                   |
-| `admin.php`                 | Halaman admin (UI + sidebar)            |
-| `config.php`                | Konfigurasi database (PDO)              |
-| `fetch_questions.php`       | API ambil soal untuk frontend           |
-| `api_categories.php`        | API CRUD kategori                       |
-| `api_packages.php`          | API CRUD paket                          |
-| `api_questions.php`         | API CRUD soal                           |
-|                             |                                         |
-| `assets/`                   | Semua aset frontend/backend             |
-| ├── `bootstrap/`            | Bootstrap CSS & JS (offline)            |
-| ├── `fontawesome/`          | Font Awesome (offline)                  |
-| ├── `gsap/`                 | GSAP (offline, animasi)                 |
-| ├── `mathjax/`              | MathJax (offline, rumus matematika)     |
-| ├── `css/`                  | Custom CSS (misal `style.css`)          |
-| └── `js/`                   | JavaScript (misal `app.js`)             |
-
-
-
-## 🗄️ Struktur Database
-
-### Tabel: `categories`
-| Kolom | Tipe Data     | Keterangan             |
-|-------|---------------|------------------------|
-| id    | INT (PK, AI)  | Primary key kategori   |
-| name  | VARCHAR(100)  | Nama kategori (misal: Matematika, Bahasa Indonesia) |
+*   **Frontend**: HTML5, CSS3, Vanilla JS, [Bootstrap 5](https://getbootstrap.com/), [GSAP](https://greensock.com/gsap/) (Animasi), [MathJax](https://www.mathjax.org/).
+*   **Backend**: PHP 8+, MariaDB/MySQL.
+*   **Database Integration**: PDO dengan sistem relasi `Categories -> Packages -> Questions`.
 
 ---
 
-### Tabel: `packages`
-| Kolom       | Tipe Data     | Keterangan                               |
-|-------------|---------------|------------------------------------------|
-| id          | INT (PK, AI)  | Primary key paket                        |
-| category_id | INT (FK)      | Relasi ke `categories.id`                |
-| name        | VARCHAR(100)  | Nama paket (misal: Paket A, Semester 1)  |
+## 📂 Struktur Direktori Utama
+
+| Path / File | Keterangan |
+| :--- | :--- |
+| `index.php` | Halaman utama dinamis (Guest/Student). |
+| `admin.php` | Panel manajemen konten multi-role. |
+| `quiz.php` | Engine kuis interaktif. |
+| `next-development.md` | Panduan teknis pengembangan fitur selanjutnya. |
+| `assets/` | File CSS, JS, Gambar, dan Audio. |
 
 ---
 
-### Tabel: `questions`
-| Kolom          | Tipe Data     | Keterangan                                       |
-|----------------|---------------|--------------------------------------------------|
-| id             | INT (PK, AI)  | Primary key soal                                 |
-| package_id     | INT (FK)      | Relasi ke `packages.id`                          |
-| question_text  | TEXT          | Teks soal (bisa memuat MathJax untuk rumus)      |
-| option_a       | VARCHAR(255)  | Pilihan jawaban A                                |
-| option_b       | VARCHAR(255)  | Pilihan jawaban B                                |
-| option_c       | VARCHAR(255)  | Pilihan jawaban C                                |
-| option_d       | VARCHAR(255)  | Pilihan jawaban D                                |
-| correct_option | CHAR(1)       | Jawaban benar (`A`, `B`, `C`, atau `D`)          |
-| sort_order     | INT           | Urutan soal dalam satu paket                     |
+## 📈 Roadmap Pengembangan
+Informasi detail mengenai rencana pengembangan sistem role, targeting, dan fitur anti-curang dapat dilihat pada file [**next-development.md**](./next-development.md).
 
 ---
-
-## 🔗 Relasi Database
-- **categories (1) → packages (n)**  
-- **packages (1) → questions (n)**
+*Dibuat untuk memajukan pendidikan melalui teknologi yang mudah diakses dan dikelola.*
