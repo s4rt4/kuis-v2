@@ -547,9 +547,10 @@ window._makeLottie = makeLottie;
 // ================================================================
 //  QUIZ ENGINE
 // ================================================================
-const QUESTIONS  = <?= $questionsJson ?>;
+let QUESTIONS  = <?= $questionsJson ?>;
 const TIME_LIMIT = <?= $timeLimit ?>;
 const TOTAL      = QUESTIONS.length;
+const PKG_ID     = <?= $packageId ?>;
 
 let currentIdx   = 0;
 let score        = 0;
@@ -560,14 +561,53 @@ let timerInterval= null;
 let timeLeft     = TIME_LIMIT;
 let answers      = []; // { qIdx, chosen, correct, isCorrect }
 let startTime    = Date.now();
+const STORAGE_KEY= 'quiz_state_' + PKG_ID;
+
+// ----------------------------------------------------------------
+//  STATE PERSISTENCE
+// ----------------------------------------------------------------
+function persistState() {
+    const state = {
+        questions: QUESTIONS,
+        currentIdx, score, correctCount, wrongCount, answers,
+        timeLeft: (TIMER_TYPE === 'per_packet') ? timeLeft : TIME_LIMIT
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const st = JSON.parse(raw);
+            if (st.questions && st.questions.length === TOTAL) {
+                QUESTIONS = st.questions;
+                currentIdx = st.currentIdx || 0;
+                score = st.score || 0;
+                correctCount = st.correctCount || 0;
+                wrongCount = st.wrongCount || 0;
+                answers = st.answers || [];
+                timeLeft = st.timeLeft || TIME_LIMIT;
+                return true;
+            }
+        }
+    } catch(e) {}
+    return false;
+}
 
 // ----------------------------------------------------------------
 //  INIT
 // ----------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
+  // Load state if exists
+  const resumed = loadState();
+  if (!resumed) {
+      persistState(); // Initial save
+  }
+  
   // Entrance animation
   gsap.to('#q-counter', { opacity:1, duration:.5, delay:.3 });
-  showQuestion(0);
+  showQuestion(currentIdx);
 });
 
 // ----------------------------------------------------------------
@@ -673,17 +713,30 @@ function handleAnswer(letter, clickedBtn) {
   // Save answer for review
   answers.push({
     qIdx: currentIdx,
+    qId: q.id,
     chosen: letter,
     correct: q.correct_option,
     isCorrect
   });
 
-  // Show next button
-  const nextWrap = document.getElementById('next-btn-wrap');
-  const nextLabel = document.getElementById('next-label');
-  nextLabel.textContent = currentIdx + 1 < TOTAL ? 'Soal Berikutnya' : 'Lihat Hasil';
-  nextWrap.style.display = 'block';
-  gsap.from(nextWrap, { opacity:0, y:12, duration:.4, delay:.35 });
+  // Show next button (unless it's auto-advance per_question timer type)
+  if (TIMER_TYPE === 'per_question') {
+      setTimeout(() => {
+          if (currentIdx + 1 < TOTAL) {
+              nextQuestion();
+          } else {
+              showResult();
+          }
+      }, 2500); // Give user 2.5s to see correct answer before jumping automatically
+  } else {
+      const nextWrap = document.getElementById('next-btn-wrap');
+      const nextLabel = document.getElementById('next-label');
+      nextLabel.textContent = currentIdx + 1 < TOTAL ? 'Soal Berikutnya' : 'Lihat Hasil';
+      nextWrap.style.display = 'block';
+      gsap.from(nextWrap, { opacity:0, y:12, duration:.4, delay:.35 });
+  }
+
+  persistState();
 }
 
 // ----------------------------------------------------------------
@@ -702,10 +755,18 @@ function nextQuestion() {
 //  TIMER
 // ----------------------------------------------------------------
 const CIRCUMFERENCE = 2 * Math.PI * 18; // ~113
+const TIMER_TYPE = "<?= $package['timer_type'] ?? 'none' ?>";
 
 function startTimer() {
-  timeLeft = TIME_LIMIT;
+  // If timer is per_question, always reset. If per_packet, only set on first initialization
+  if (TIMER_TYPE === 'per_question' || (TIMER_TYPE === 'per_packet' && timeLeft === TIME_LIMIT && !timerInterval)) {
+    timeLeft = TIME_LIMIT;
+  }
+  
+  if (TIMER_TYPE === 'none' || TIME_LIMIT <= 0) return;
+  
   updateTimerUI();
+  clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     timeLeft--;
     updateTimerUI();
@@ -715,7 +776,7 @@ function startTimer() {
       if (!answered) {
         const q = QUESTIONS[currentIdx];
         wrongCount++;
-        answers.push({ qIdx: currentIdx, chosen: null, correct: q.correct_option, isCorrect: false });
+        answers.push({ qIdx: currentIdx, qId: q.id, chosen: null, correct: q.correct_option, isCorrect: false });
         document.querySelectorAll('.opt-btn').forEach(btn => {
           btn.disabled = true;
           if (btn.dataset.letter === q.correct_option) btn.classList.add('correct');
@@ -725,9 +786,20 @@ function startTimer() {
           document.getElementById('explanation-text').textContent = q.explanation;
           document.getElementById('explanation-box').style.display = 'block';
         }
-        const nextWrap = document.getElementById('next-btn-wrap');
-        document.getElementById('next-label').textContent = currentIdx + 1 < TOTAL ? 'Soal Berikutnya' : 'Lihat Hasil';
-        nextWrap.style.display = 'block';
+        
+        // Auto next for per_question
+        if (TIMER_TYPE === 'per_question') {
+            setTimeout(() => {
+                if (currentIdx + 1 < TOTAL) {
+                    nextQuestion();
+                } else {
+                    showResult();
+                }
+            }, 2500); // Give user 2.5s to see correct answer before jumping
+        } else {
+            // For per_packet, the quiz ends immediately if time is up
+            showResult();
+        }
       }
     }
   }, 1000);
@@ -790,6 +862,9 @@ function showResult() {
   const duration = Math.round((Date.now() - startTime) / 1000);
   const pct      = Math.round((correctCount / TOTAL) * 100);
 
+  // Clear state so we don't boot into finished quiz next time
+  localStorage.removeItem(STORAGE_KEY);
+
   // Save session
   saveSession(pct, duration);
 
@@ -841,25 +916,48 @@ function showResult() {
   buildReview();
 }
 
-function buildReview() {
+async function buildReview() {
   const list = document.getElementById('review-list');
-  list.innerHTML = '<p style="font-weight:800;font-size:.9rem;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Review Jawaban</p>';
-  answers.forEach((ans, i) => {
-    const q    = QUESTIONS[ans.qIdx];
-    const opts = { A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d };
-    const item = document.createElement('div');
-    item.className = 'review-item ' + (ans.isCorrect ? 'correct-item' : 'wrong-item');
-    item.innerHTML = `
-      <div class="review-q">${i+1}. ${escHtml(q.question_text)}</div>
-      <div class="review-ans">
-        ${ans.chosen
-          ? `Jawabanmu: <span class="${ans.isCorrect ? 'correct-ans':'wrong-ans'}">${ans.chosen}. ${escHtml(opts[ans.chosen]||'')}</span>`
-          : '<span class="wrong-ans">Waktu habis</span>'}
-        ${!ans.isCorrect ? ` &nbsp;|&nbsp; Jawaban benar: <span class="correct-ans">${ans.correct}. ${escHtml(opts[ans.correct]||'')}</span>` : ''}
-      </div>
-      ${q.explanation ? `<div class="review-exp"><i class="fa fa-lightbulb"></i> ${escHtml(q.explanation)}</div>` : ''}`;
-    list.appendChild(item);
-  });
+  list.innerHTML = '<p style="font-weight:800;font-size:.9rem;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Memuat Review...</p>';
+  
+  // Refetch questions with review flag to get explanations and correct_options
+  try {
+      const res = await fetch('fetch_questions.php?package=' + PKG_ID + '&review=1');
+      const fullQuestions = await res.json();
+      
+      list.innerHTML = '<p style="font-weight:800;font-size:.9rem;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Review Jawaban</p>';
+      
+      // Match by ID
+      answers.forEach((ans, i) => {
+        const localQ = QUESTIONS[ans.qIdx];
+        const serverQ = fullQuestions.find(q => parseInt(q.id) === localQ.id) || localQ;
+        
+        // Use server Q for correct answers and explanations
+        const q = serverQ;
+        
+        // Recalculate isCorrect based on true response if it wasn't tracked properly, 
+        // though `ans.isCorrect` is already fixed in our frontend logic for simple tests.
+        // It's safer to use the server correct option to display.
+        const actualCorrect = serverQ.correct_option || ans.correct; 
+        
+        const opts = { A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d };
+        const item = document.createElement('div');
+        item.className = 'review-item ' + (ans.isCorrect ? 'correct-item' : 'wrong-item');
+        item.innerHTML = `
+          <div class="review-q">${i+1}. ${escHtml(q.question_text)}</div>
+          <div class="review-ans">
+            ${ans.chosen
+              ? `Jawabanmu: <span class="${ans.isCorrect ? 'correct-ans':'wrong-ans'}">${ans.chosen}. ${escHtml(opts[ans.chosen]||'')}</span>`
+              : '<span class="wrong-ans">Waktu habis</span>'}
+            ${!ans.isCorrect ? ` &nbsp;|&nbsp; Jawaban benar: <span class="correct-ans">${actualCorrect}. ${escHtml(opts[actualCorrect]||'')}</span>` : ''}
+          </div>
+          ${q.explanation ? `<div class="review-exp"><i class="fa fa-lightbulb"></i> ${escHtml(q.explanation)}</div>` : ''}`;
+        list.appendChild(item);
+      });
+      
+  } catch (e) {
+      list.innerHTML = '<p style="color:red">Gagal memuat detail review.</p>';
+  }
 }
 
 async function saveSession(pct, duration) {
@@ -872,6 +970,8 @@ async function saveSession(pct, duration) {
     fd.append('correct',      correctCount);
     fd.append('wrong',        wrongCount);
     fd.append('duration_sec', duration);
+    fd.append('answers',      JSON.stringify(answers));
+    
     await fetch('api_session.php', { method:'POST', body: fd });
   } catch(e) { /* silent */ }
 }

@@ -174,16 +174,16 @@
 
   <!-- Level Buttons -->
   <div class="level-row">
-    <a href="subjects.php?level=SD" class="level-card sd">
-      <img src="assets/png/button_sd.png" alt="SD" class="btn-img">
+    <a href="subjects.php?level=sd" class="level-card sd">
+      <img src="assets/png/button_sd.png" alt="SD" class="btn-img" onerror="this.src='assets/img/button_sd.png'">
       <span class="level-label">Sekolah Dasar</span>
     </a>
-    <a href="subjects.php?level=SMP" class="level-card smp">
-      <img src="assets/png/button_smp.png" alt="SMP" class="btn-img">
+    <a href="subjects.php?level=smp" class="level-card smp">
+      <img src="assets/png/button_smp.png" alt="SMP" class="btn-img" onerror="this.src='assets/img/button_smp.png'">
       <span class="level-label">Sekolah Menengah Pertama</span>
     </a>
-    <a href="subjects.php?level=SMA" class="level-card sma">
-      <img src="assets/png/button_sma.png" alt="SMA" class="btn-img">
+    <a href="subjects.php?level=sma" class="level-card sma">
+      <img src="assets/png/button_sma.png" alt="SMA" class="btn-img" onerror="this.src='assets/img/button_sma.png'">
       <span class="level-label">Sekolah Menengah Atas</span>
     </a>
   </div>
@@ -192,7 +192,7 @@
   <div class="shelf-bar" id="shelf-bar"></div>
 
   <p class="footer-note" id="footer-note">
-    Guru? <a href="admin.php">Masuk ke Panel Admin →</a>
+    Guru atau Admin? <a href="login.php">Masuk ke Panel →</a>
   </p>
 </div>
 

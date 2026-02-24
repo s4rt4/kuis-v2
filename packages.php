@@ -17,12 +17,19 @@ if (!$category) {
 }
 
 // Ambil paket beserta jumlah soal
+$access_filter = "";
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    $access_filter = " AND p.target_access IN ('guest', 'both') ";
+}
+
 $stmtPkg = $db->prepare("
   SELECT p.*,
          COUNT(q.id) AS question_count
   FROM packages p
   LEFT JOIN questions q ON q.package_id = p.id
   WHERE p.category_id = :cid AND p.is_active = 1
+  $access_filter
   GROUP BY p.id
   ORDER BY p.sort_order, p.id
 ");

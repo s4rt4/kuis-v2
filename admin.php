@@ -1,6 +1,13 @@
 <?php
 // admin.php — Panel Admin Modern
+session_start();
 require 'config.php';
+
+// Auth Guard
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'], ['admin', 'teacher'])) {
+    header("Location: login.php");
+    exit;
+}
 
 // Ambil data awal untuk dropdown
 $allCats = $db->query("SELECT * FROM categories ORDER BY level, sort_order, name")->fetchAll();
@@ -1114,8 +1121,33 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
               placeholder="Jelaskan isi paket ini untuk siswa, e.g. 'Soal campuran perkalian dan pembagian kelas 4'"></textarea>
           </div>
           <div class="col-sm-4">
-            <label class="form-label">Timer per Soal (detik)</label>
+            <label class="form-label">Tipe Akses</label>
+            <select class="form-select" id="pkg-access">
+              <option value="both">Semua (Guest & Internal)</option>
+              <option value="guest">Guest (Terbuka)</option>
+              <option value="internal">Internal (Wajib Login)</option>
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Tipe Timer</label>
+            <select class="form-select" id="pkg-timer-type">
+              <option value="none">Tanpa Timer</option>
+              <option value="per_packet">Per Paket (Menit)</option>
+              <option value="per_question">Per Soal (Detik)</option>
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Durasi <small>(Angka Saja)</small></label>
             <input type="number" class="form-control" id="pkg-timer" value="0" min="0" placeholder="0 = tanpa batas">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Target Level</label>
+            <select class="form-select" id="pkg-target-level">
+              <option value="all">Semua Jenjang</option>
+              <option value="sd">SD</option>
+              <option value="smp">SMP</option>
+              <option value="sma">SMA</option>
+            </select>
           </div>
           <div class="col-sm-4">
             <label class="form-label">Acak Urutan Soal</label>
@@ -1131,11 +1163,11 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
               <option value="1">Ya</option>
             </select>
           </div>
-          <div class="col-sm-4">
+          <div class="col-sm-6">
             <label class="form-label">Urutan Tampil</label>
             <input type="number" class="form-control" id="pkg-sort" value="0" min="0">
           </div>
-          <div class="col-sm-4">
+          <div class="col-sm-6">
             <label class="form-label">Status</label>
             <select class="form-select" id="pkg-active">
               <option value="1">Aktif</option>
@@ -1183,6 +1215,10 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
           <div class="col-12">
             <label class="form-label">Teks Soal <span class="text-danger">*</span></label>
             <textarea class="form-control" id="q-text" rows="3" placeholder="Tulis soal di sini..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Gambar Soal <small style="color:var(--muted)">(opsional)</small></label>
+            <input type="file" class="form-control" id="q-image" accept="image/png, image/jpeg, image/jpg, image/webp">
           </div>
 
           <!-- Opsi A-D -->
@@ -1232,6 +1268,39 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
   </div>
 </div>
 
+<!-- ===================== MODAL: ANALYTICS (STATISTIK) ===================== -->
+<div class="modal fade" id="statModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="statModalTitle">Statistik Paket</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle" id="tbl-stats">
+            <thead>
+              <tr>
+                <th width="50">No</th>
+                <th>Soal</th>
+                <th width="100">Menjawab</th>
+                <th width="100">Benar</th>
+                <th width="120">Success Rate</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-stats">
+              <tr><td colspan="5" class="text-center">Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: CONFIRM DELETE ===================== -->
 <div class="modal fade" id="confirmModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -1273,6 +1342,7 @@ const catModal     = new bootstrap.Modal('#catModal');
 const pkgModal     = new bootstrap.Modal('#pkgModal');
 const qModal       = new bootstrap.Modal('#qModal');
 const confirmModal = new bootstrap.Modal('#confirmModal');
+const statModal    = new bootstrap.Modal('#statModal');
 
 // DataTable instances
 let dtCat, dtPkg, dtQ;
@@ -1413,13 +1483,14 @@ async function loadPackages() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${i+1}</td>
-      <td><strong>${esc(p.name)}</strong></td>
+      <td><strong>${esc(p.name)}</strong><br><small class="text-muted">Akses: ${esc(p.target_access)} | Timer: ${esc(p.timer_type)}</small></td>
       <td>${esc(p.category_name || '—')}</td>
       <td style="max-width:220px;white-space:normal;font-size:.82rem;color:var(--muted)">${esc(p.description || '—')}</td>
-      <td>${p.time_limit > 0 ? p.time_limit+'<small> dtk</small>' : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${p.time_limit > 0 ? p.time_limit+'<small> unit</small>' : '<span style="color:var(--muted)">—</span>'}</td>
       <td>${p.shuffle_q == 1 ? '<i class="fa fa-check" style="color:var(--success)"></i>' : '<span style="color:var(--muted)">—</span>'}</td>
       <td>
         <button class="btn-icon btn-edit" onclick='editPkg(${JSON.stringify(p)})'><i class="fa fa-pen"></i></button>
+        <button class="btn-icon text-info" onclick="showStats(${p.id}, '${esc(p.name)}')"><i class="fa fa-chart-simple"></i></button>
         <button class="btn-icon btn-del"  onclick="deletePkg(${p.id}, '${esc(p.name)}')"><i class="fa fa-trash"></i></button>
       </td>`;
     tbody.appendChild(tr);
@@ -1443,6 +1514,11 @@ function openPkgModal(data=null) {
   document.getElementById('pkg-name').value       = data?.name        ?? '';
   document.getElementById('pkg-desc').value       = data?.description ?? '';
   document.getElementById('pkg-timer').value      = data?.time_limit  ?? 0;
+  
+  document.getElementById('pkg-access').value     = data?.target_access ?? 'both';
+  document.getElementById('pkg-timer-type').value = data?.timer_type ?? 'none';
+  document.getElementById('pkg-target-level').value = data?.target_level ?? 'all';
+
   document.getElementById('pkg-shuffle-q').value  = data?.shuffle_q   ?? 0;
   document.getElementById('pkg-shuffle-opt').value= data?.shuffle_opt ?? 0;
   document.getElementById('pkg-sort').value       = data?.sort_order  ?? 0;
@@ -1465,6 +1541,11 @@ async function savePkg() {
   fd.append('name',         name);
   fd.append('description',  document.getElementById('pkg-desc').value);
   fd.append('time_limit',   document.getElementById('pkg-timer').value);
+  
+  fd.append('target_access',document.getElementById('pkg-access').value);
+  fd.append('timer_type',   document.getElementById('pkg-timer-type').value);
+  fd.append('target_level', document.getElementById('pkg-target-level').value);
+
   fd.append('shuffle_q',    document.getElementById('pkg-shuffle-q').value);
   fd.append('shuffle_opt',  document.getElementById('pkg-shuffle-opt').value);
   fd.append('sort_order',   document.getElementById('pkg-sort').value);
@@ -1497,6 +1578,47 @@ async function deletePkg(id, name) {
     } else toast(json.message || 'Gagal', 'error');
   };
   confirmModal.show();
+}
+
+async function showStats(pkgId, pkgName) {
+  document.getElementById('statModalTitle').textContent = `Statistik Paket: ${pkgName}`;
+  const tbody = document.getElementById('tbody-stats');
+  tbody.innerHTML = '<tr><td colspan="5" class="text-center"><i class="fa fa-spinner fa-spin"></i> Memuat...</td></tr>';
+  statModal.show();
+
+  try {
+    const res = await fetch('api_analytics.php?action=questions_success_rate&package_id=' + pkgId);
+    const json = await res.json();
+    if (json.success) {
+      tbody.innerHTML = '';
+      if (json.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Belum ada data pertanyaan untuk paket ini.</td></tr>';
+      } else {
+        json.data.forEach((q, i) => {
+          const successRate = parseFloat(q.success_rate);
+          let badgeClass = 'bg-danger';
+          if (successRate >= 80) badgeClass = 'bg-success';
+          else if (successRate >= 50) badgeClass = 'bg-warning text-dark';
+          
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${i+1}</td>
+            <td style="max-width:300px;white-space:normal;font-size:0.9rem">${esc(q.question_text.length>60?q.question_text.substring(0,60)+'…':q.question_text)}</td>
+            <td>${q.total_answers} kali</td>
+            <td>${q.correct_answers} kali</td>
+            <td>
+              <span class="badge ${badgeClass}" style="font-size:0.85rem">${successRate}%</span>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } else {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${json.message}</td></tr>`;
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Gagal memuat statistik.</td></tr>';
+  }
 }
 
 // ================================================================
@@ -1545,6 +1667,7 @@ function openQModal(data=null) {
   document.getElementById('q-opt-d').value       = data?.option_d     ?? '';
   document.getElementById('q-explanation').value = data?.explanation   ?? '';
   document.getElementById('q-sort').value        = data?.sort_order    ?? 0;
+  document.getElementById('q-image').value       = ''; // reset file input
 
   // Set correct radio
   document.querySelectorAll('input[name="q-correct"]').forEach(r => r.checked = false);
@@ -1581,6 +1704,7 @@ async function saveQ() {
   const pkgId   = document.getElementById('q-pkg').value;
   const qtext   = document.getElementById('q-text').value.trim();
   const correct = document.querySelector('input[name="q-correct"]:checked')?.value;
+  const imgFile = document.getElementById('q-image').files[0];
 
   if (!catId || !pkgId || !qtext || !correct) {
     toast('Isi semua field yang wajib diisi', 'error'); return;
@@ -1599,6 +1723,10 @@ async function saveQ() {
   fd.append('correct_option',correct);
   fd.append('explanation',   document.getElementById('q-explanation').value);
   fd.append('sort_order',    document.getElementById('q-sort').value);
+  
+  if (imgFile) {
+      fd.append('image', imgFile);
+  }
 
   const res  = await fetch('api_questions.php', {method:'POST', body:fd});
   const json = await res.json();
@@ -1708,6 +1836,7 @@ async function submitImport() {
     fd.append('option_d',      item.option_d);
     fd.append('correct_option',item.correct_option.toUpperCase());
     fd.append('explanation',   item.explanation || '');
+    fd.append('image_url',     item.image_url || '');
     fd.append('sort_order',    item.sort_order || 0);
     try {
       const res  = await fetch('api_questions.php', {method:'POST', body:fd});
