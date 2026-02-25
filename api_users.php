@@ -115,22 +115,53 @@ if ($action === 'update') {
         ]);
     }
 
+    // Bug #6: Handle avatar upload on update
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $file    = $_FILES['avatar'];
+        $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        if (in_array($ext, $allowed) && $file['size'] <= 2 * 1024 * 1024) {
+            $upload_dir = 'uploads/avatars/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+            $new_filename = 'avatar_u' . $id . '_' . time() . '.' . $ext;
+            if (move_uploaded_file($file['tmp_name'], $upload_dir . $new_filename)) {
+                // Delete old avatar
+                $oldStmt = $db->prepare("SELECT avatar FROM users WHERE id = :id");
+                $oldStmt->execute([':id' => $id]);
+                $old = $oldStmt->fetchColumn();
+                if ($old && file_exists($old) && $old !== 'assets/png/avatar.png') {
+                    @unlink($old);
+                }
+                $db->prepare("UPDATE users SET avatar = :av WHERE id = :id")
+                   ->execute([':av' => $upload_dir . $new_filename, ':id' => $id]);
+            }
+        }
+    }
+
     echo json_encode(['success' => true]);
     exit;
 }
 
 if ($action === 'delete') {
     $id = intval($_POST['id'] ?? 0);
-    
+
     // Prevent deleting self (admin)
     if ($id === $_SESSION['user_id']) {
         echo json_encode(['success' => false, 'message' => 'Tidak dapat menghapus akun sendiri']);
         exit;
     }
 
+    // Bug #5: Hapus file avatar sebelum delete user
+    $avatarStmt = $db->prepare("SELECT avatar FROM users WHERE id = :id");
+    $avatarStmt->execute([':id' => $id]);
+    $avatarPath = $avatarStmt->fetchColumn();
+    if ($avatarPath && file_exists($avatarPath) && $avatarPath !== 'assets/png/avatar.png') {
+        @unlink($avatarPath);
+    }
+
     $stmt = $db->prepare("DELETE FROM users WHERE id = :id");
     $stmt->execute([':id' => $id]);
-    
+
     echo json_encode(['success' => true]);
     exit;
 }

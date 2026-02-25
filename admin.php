@@ -3238,7 +3238,11 @@ function renderGradesTable(tbodyId, tableId, data, level) {
         <td>
           ${!isRemedial
             ? `<button class="btn-icon" style="background:#fef3c7;color:#92400e;" title="Input Remedial"
-                onclick="openRemedialModal(${r.id}, '${esc(r.player_name || r.display_name || '')}', '${esc(r.package_name || '')}', ${r.score})">
+                data-sid="${r.id}"
+                data-name="${esc(r.player_name || r.display_name || '')}"
+                data-pkg="${esc(r.package_name || '')}"
+                data-score="${r.score}"
+                onclick="openRemedialFromBtn(this)">
                 <i class="fa fa-pen-to-square"></i>
               </button>`
             : '<i class="fa fa-lock text-muted" title="Nilai remedial tidak dapat dirubah"></i>'}
@@ -3263,6 +3267,16 @@ function renderGradesTable(tbodyId, tableId, data, level) {
       emptyTable: 'Belum ada data nilai'
     }
   });
+}
+
+// Bug #3 fix: read params from data-* attributes (safe from single-quote XSS)
+function openRemedialFromBtn(btn) {
+  openRemedialModal(
+    btn.dataset.sid,
+    btn.dataset.name,
+    btn.dataset.pkg,
+    btn.dataset.score
+  );
 }
 
 function openRemedialModal(sessionId, studentName, packageName, oldScore) {

@@ -93,12 +93,12 @@ if ($action === 'update_profile') {
         
         // Update session
         $_SESSION['user_username'] = $username;
-        $_SESSION['user_name'] = $display_name;
+        $_SESSION['user_name']     = $display_name;
         if ($avatar_url !== null) {
-            $_SESSION['user_avatar'] = $avatar_url; // Not strictly used right now but good to have
+            $_SESSION['user_avatar'] = $avatar_url; // Keep session in sync with new avatar path
         }
 
-        echo json_encode(['success' => true, 'avatar_url' => $avatar_url]);
+        echo json_encode(['success' => true, 'avatar_url' => $avatar_url ?? $_SESSION['user_avatar'] ?? null]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     }

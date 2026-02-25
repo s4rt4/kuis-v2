@@ -18,10 +18,29 @@ $studentName  = $_SESSION['user_name']  ?? $_SESSION['user_username'] ?? 'Siswa'
 $studentLevel = strtoupper($_SESSION['user_level'] ?? 'SD'); // SD, SMP, SMA
 $studentAvatar = $_SESSION['user_avatar'] ?? 'assets/png/avatar.png';
 
-// Ambil kategori sesuai level siswa
-$stmt = $db->prepare("SELECT * FROM v_category_stats WHERE level = :lv ORDER BY sort_order, category_name");
-$stmt->execute([':lv' => $studentLevel]);
-$categories = $stmt->fetchAll();
+// Ambil kategori sesuai level siswa — query langsung tanpa view
+try {
+    $stmt = $db->prepare("
+        SELECT
+            c.id   AS category_id,
+            c.name AS category_name,
+            c.color,
+            c.sort_order,
+            COUNT(p.id) AS package_count
+        FROM categories c
+        LEFT JOIN packages p
+            ON p.category_id = c.id
+            AND LOWER(p.target_level) IN (:lv, 'all')
+            AND p.is_active = 1
+        GROUP BY c.id, c.name, c.color, c.sort_order
+        HAVING package_count > 0
+        ORDER BY c.sort_order, c.name
+    ");
+    $stmt->execute([':lv' => strtolower($studentLevel)]);
+    $categories = $stmt->fetchAll();
+} catch (Exception $e) {
+    $categories = []; // Graceful fallback — tampilkan empty state
+}
 
 // Warna tema per jenjang
 $levelMeta = [

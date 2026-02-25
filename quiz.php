@@ -1,5 +1,6 @@
 <?php
 // quiz.php — Halaman Kuis Interaktif
+session_start();
 require 'config.php';
 
 $packageId = intval($_GET['package'] ?? 0);
@@ -7,7 +8,7 @@ if (!$packageId) { header("Location: index.php"); exit; }
 
 // Ambil info paket
 $stmtPkg = $db->prepare("
-    SELECT p.*, c.name AS cat_name, c.color AS cat_color, c.level
+    SELECT p.*, c.name AS cat_name, c.color AS cat_color, p.target_level AS level
     FROM packages p
     LEFT JOIN categories c ON c.id = p.category_id
     WHERE p.id = :id AND p.is_active = 1
