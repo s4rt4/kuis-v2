@@ -16,6 +16,9 @@ ADD COLUMN `role` ENUM('admin', 'teacher', 'student') NOT NULL DEFAULT 'teacher'
 -- After changing, set the admin back to 'all' level and 'admin' role
 UPDATE `users` SET `level` = 'all', `role` = 'admin' WHERE `id` = 1;
 
+-- Phase 6: Add avatar column
+ALTER TABLE `users` ADD COLUMN `avatar` VARCHAR(255) NULL;
+
 
 -- 2. Updates to current 'packages' table
 ALTER TABLE `packages`

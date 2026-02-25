@@ -688,6 +688,15 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       </button>
     </div>
 
+    <?php if ($_SESSION['user_role'] === 'admin'): ?>
+    <div class="sidebar-section">Sistem</div>
+    <div class="nav-item">
+      <button class="nav-link" data-panel="users" onclick="showPanel('users', this)">
+        <i class="fa fa-users-gear"></i> Kelola Pengguna
+      </button>
+    </div>
+    <?php endif; ?>
+
     <div class="sidebar-footer">
       <a href="index.php" target="_blank">
         <i class="fa fa-arrow-up-right-from-square"></i> Lihat Halaman Kuis
@@ -705,7 +714,10 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
         <span id="topbar-label">Dashboard</span>
       </div>
       <div class="topbar-right">
-        <a href="index.php" target="_blank">
+        <a href="javascript:void(0)" onclick="openProfileModal()">
+          <i class="fa fa-user-circle"></i> Profil Saya
+        </a>
+        <a href="index.php" target="_blank" style="margin-left:.75rem">
           <i class="fa fa-eye"></i> Preview Kuis
         </a>
       </div>
@@ -1034,12 +1046,146 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
         </div>
       </div>
 
+      <?php if ($_SESSION['user_role'] === 'admin'): ?>
+      <!-- ===================== USERS ===================== -->
+      <div class="panel" id="panel-users">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i class="fa fa-users-gear"></i> Kelola Pengguna
+          </div>
+          <button class="btn-primary-custom" onclick="openUserModal()">
+            <i class="fa fa-plus"></i> Tambah Pengguna
+          </button>
+        </div>
+        <div class="panel-body">
+          <table id="tbl-users" class="table table-hover w-100">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Username</th>
+                <th>Nama</th>
+                <th>Role</th>
+                <th>Level Akses</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-users">
+              <!-- Users populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <?php endif; ?>
+
     </div><!-- /page-wrapper -->
   </div><!-- /main-content -->
 </div><!-- /admin-layout -->
 
 <!-- Toast -->
 <div class="toast-container" id="toast-container"></div>
+
+<?php if ($_SESSION['user_role'] === 'admin'): ?>
+<!-- ===================== MODAL: USER ===================== -->
+<div class="modal fade" id="userModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="userModalTitle">Tambah Pengguna</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="user-id">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Username <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="user-username" placeholder="e.g. jhon.doe">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="user-name" placeholder="e.g. Jhon Doe">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" id="user-password" placeholder="Kosongkan jika tidak ingin diubah">
+            <small class="text-muted" id="user-password-help" style="display:none">Biarkan kosong saat update untuk menjaga sandi lama.</small>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Role</label>
+            <select class="form-select" id="user-role">
+              <option value="teacher">Guru / Teacher</option>
+              <option value="admin">Administrator</option>
+              <option value="student">Siswa / Student</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Level Akses</label>
+            <select class="form-select" id="user-level">
+              <option value="sd">SD</option>
+              <option value="smp">SMP</option>
+              <option value="sma">SMA</option>
+              <option value="all">Semua (All)</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Status Aktif</label>
+            <select class="form-select" id="user-active">
+              <option value="1">Aktif</option>
+              <option value="0">Diblokir / Tidak Aktif</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+        <button class="btn-primary-custom" onclick="saveUser()">
+          <i class="fa fa-save"></i> Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- ===================== MODAL: PROFILE ===================== -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="profileModalTitle">Profil Saya</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center mb-3">
+          <img id="profile-avatar-preview" src="<?= htmlspecialchars(!empty($_SESSION['user_avatar']) ? $_SESSION['user_avatar'] : 'assets/png/avatar.png') ?>" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--border)">
+          <div class="mt-2">
+            <input type="file" id="profile-avatar" accept="image/*" class="form-control form-control-sm d-inline-block" style="max-width:200px">
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Username <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="profile-username" value="<?= htmlspecialchars($_SESSION['user_username'] ?? '') ?>">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="profile-name" value="<?= htmlspecialchars($_SESSION['user_name'] ?? '') ?>">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Password Baru</label>
+            <input type="password" class="form-control" id="profile-password" placeholder="Kosongkan jika tidak ingin diubah">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+        <button class="btn-primary-custom" onclick="saveProfile()">
+          <i class="fa fa-save"></i> Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ===================== MODAL: CATEGORY ===================== -->
 <div class="modal fade" id="catModal" tabindex="-1">
@@ -1343,9 +1489,12 @@ const pkgModal     = new bootstrap.Modal('#pkgModal');
 const qModal       = new bootstrap.Modal('#qModal');
 const confirmModal = new bootstrap.Modal('#confirmModal');
 const statModal    = new bootstrap.Modal('#statModal');
+const userModalEl  = document.getElementById('userModal');
+const userModal    = userModalEl ? new bootstrap.Modal(userModalEl) : null;
+const profileModal = new bootstrap.Modal('#profileModal');
 
 // DataTable instances
-let dtCat, dtPkg, dtQ;
+let dtCat, dtPkg, dtQ, dtUser;
 
 // ================================================================
 //  PANEL NAVIGATION
@@ -1359,11 +1508,13 @@ function showPanel(name, btn) {
 
   const icons = {
     dashboard:'fa-gauge-high', categories:'fa-folder-tree',
-    packages:'fa-layer-group', questions:'fa-circle-question', import:'fa-file-import'
+    packages:'fa-layer-group', questions:'fa-circle-question', import:'fa-file-import',
+    users:'fa-users-gear'
   };
   const labels = {
     dashboard:'Dashboard', categories:'Mata Pelajaran',
-    packages:'Paket Soal', questions:'Bank Soal', import:'Import JSON'
+    packages:'Paket Soal', questions:'Bank Soal', import:'Import JSON',
+    users:'Kelola Pengguna'
   };
   document.getElementById('topbar-icon').className = 'fa ' + (icons[name] || 'fa-circle');
   document.getElementById('topbar-label').textContent = labels[name] || name;
@@ -1372,6 +1523,7 @@ function showPanel(name, btn) {
   if (name === 'categories' && !dtCat) initCatTable();
   if (name === 'packages'   && !dtPkg) loadPackages();
   if (name === 'questions'  && !dtQ)  loadQuestions();
+  if (name === 'users'      && !dtUser) loadUsers();
 }
 
 // ================================================================
@@ -2037,6 +2189,176 @@ document.getElementById('paste-textarea').addEventListener('keydown', function(e
     this.value  = this.value.substring(0,start) + '  ' + this.value.substring(end);
     this.selectionStart = this.selectionEnd = start + 2;
     onPasteInput();
+  }
+});
+
+// ================================================================
+//  USERS (KELOLA PENGGUNA)
+// ================================================================
+async function loadUsers() {
+  const res  = await fetch('api_users.php');
+  const json = await res.json();
+  const tbody = document.getElementById('tbody-users');
+  tbody.innerHTML = '';
+  if (json.success) {
+    json.data.forEach((u, i) => {
+      const tr = document.createElement('tr');
+      let roleBadge = '';
+      if (u.role === 'admin') roleBadge = '<span class="badge bg-danger">Admin</span>';
+      else if (u.role === 'teacher') roleBadge = '<span class="badge bg-primary">Teacher</span>';
+      else roleBadge = '<span class="badge bg-secondary">Student</span>';
+
+      const statusBadge = parseInt(u.is_active) === 1 
+        ? '<span class="badge bg-success">Aktif</span>' 
+        : '<span class="badge bg-warning text-dark">Blokir</span>';
+
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td><strong>${esc(u.username)}</strong></td>
+        <td>${esc(u.display_name || '—')}</td>
+        <td>${roleBadge}</td>
+        <td><span class="badge-level badge-${u.level}">${u.level.toUpperCase()}</span></td>
+        <td>${statusBadge}</td>
+        <td>
+          <button class="btn-icon btn-edit" onclick='editUser(${JSON.stringify(u)})'><i class="fa fa-pen"></i></button>
+          <button class="btn-icon btn-del"  onclick="deleteUser(${u.id}, '${esc(u.username)}')"><i class="fa fa-trash"></i></button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+    dtUser = $('#tbl-users').DataTable({
+      pageLength: 10,
+      columnDefs: [{ orderable: false, targets: 6 }],
+      language: {
+        search: 'Cari:', lengthMenu: 'Tampilkan _MENU_ data',
+        info: 'Menampilkan _START_-_END_ dari _TOTAL_ data',
+        paginate: { previous:'‹', next:'›' }, emptyTable:'Belum ada pengguna'
+      }
+    });
+  }
+}
+
+function openUserModal(data=null) {
+  document.getElementById('userModalTitle').textContent = data ? 'Edit Pengguna' : 'Tambah Pengguna';
+  document.getElementById('user-id').value       = data?.id           ?? '';
+  document.getElementById('user-username').value = data?.username     ?? '';
+  document.getElementById('user-name').value     = data?.display_name ?? '';
+  document.getElementById('user-password').value = '';
+  document.getElementById('user-role').value     = data?.role         ?? 'teacher';
+  document.getElementById('user-level').value    = data?.level        ?? 'sd';
+  document.getElementById('user-active').value   = data?.is_active    ?? 1;
+
+  if (data) {
+    document.getElementById('user-password-help').style.display = 'block';
+  } else {
+    document.getElementById('user-password-help').style.display = 'none';
+  }
+
+  userModal.show();
+}
+
+function editUser(data) { openUserModal(data); }
+
+async function saveUser() {
+  const id = document.getElementById('user-id').value;
+  const username = document.getElementById('user-username').value.trim();
+  const password = document.getElementById('user-password').value;
+
+  if (!username) { toast('Username wajib diisi', 'error'); return; }
+  if (!id && !password) { toast('Password wajib diisi untuk user baru', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('action', id ? 'update' : 'create');
+  if (id) fd.append('id', id);
+  fd.append('username',     username);
+  fd.append('display_name', document.getElementById('user-name').value.trim());
+  fd.append('password',     password);
+  fd.append('role',         document.getElementById('user-role').value);
+  fd.append('level',        document.getElementById('user-level').value);
+  fd.append('is_active',    document.getElementById('user-active').value);
+
+  const res  = await fetch('api_users.php', {method:'POST', body:fd});
+  const json = await res.json();
+  if (json.success) {
+    toast(id ? 'Pengguna diperbarui!' : 'Pengguna ditambahkan!');
+    userModal.hide();
+    if (dtUser) { dtUser.destroy(); dtUser = null; }
+    document.getElementById('tbody-users').innerHTML = '';
+    loadUsers();
+  } else toast(json.message || 'Gagal menyimpan', 'error');
+}
+
+async function deleteUser(id, username) {
+  document.getElementById('confirm-msg').textContent = `Hapus pengguna "${username}"? Sistem mungkin terputus dari rekaman log pengguna ini.`;
+  document.getElementById('confirm-ok-btn').onclick = async () => {
+    const fd = new FormData();
+    fd.append('action','delete'); fd.append('id', id);
+    const res  = await fetch('api_users.php', {method:'POST', body:fd});
+    const json = await res.json();
+    confirmModal.hide();
+    if (json.success) {
+      toast('Pengguna dihapus!');
+      if (dtUser) { dtUser.destroy(); dtUser = null; }
+      document.getElementById('tbody-users').innerHTML = '';
+      loadUsers();
+    } else toast(json.message || 'Gagal menghapus', 'error');
+  };
+  confirmModal.show();
+}
+
+// ================================================================
+//  PROFILE SAYA
+// ================================================================
+function openProfileModal() {
+  document.getElementById('profile-password').value = '';
+  document.getElementById('profile-avatar').value = '';
+  // Try to load current user avatar from PHP if we had it, but we can set it to default if empty
+  profileModal.show();
+}
+
+async function saveProfile() {
+  const username = document.getElementById('profile-username').value.trim();
+  const name     = document.getElementById('profile-name').value.trim();
+  const password = document.getElementById('profile-password').value;
+  const avatarEl = document.getElementById('profile-avatar');
+
+  if (!username) { toast('Username wajib diisi', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('action', 'update_profile');
+  fd.append('username', username);
+  fd.append('display_name', name);
+  if (password) fd.append('password', password);
+  if (avatarEl.files.length > 0) {
+    fd.append('avatar', avatarEl.files[0]);
+  }
+
+  try {
+    const res = await fetch('api_profile.php', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (json.success) {
+      toast('Profil berhasil diperbarui! Halaman akan dimuat ulang...');
+      if (json.avatar_url) {
+        document.getElementById('profile-avatar-preview').src = json.avatar_url;
+      }
+      profileModal.hide();
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      toast(json.message || 'Gagal menyimpan profil', 'error');
+    }
+  } catch (e) {
+    toast('Gagal menghubungi server', 'error');
+  }
+}
+
+// Preview avatar
+document.getElementById('profile-avatar').addEventListener('change', function(e) {
+  if (this.files && this.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      document.getElementById('profile-avatar-preview').src = ev.target.result;
+    }
+    reader.readAsDataURL(this.files[0]);
   }
 });
 

@@ -42,7 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_username'] = $user['username'];
             $_SESSION['user_role']     = $user['role'];
             $_SESSION['user_level']    = $user['level'];
-            $_SESSION['user_name']     = $user['full_name'];
+            $_SESSION['user_name']     = $user['display_name'] ?? $user['username'];
+            $_SESSION['user_avatar']   = $user['avatar'];
 
             // Update last_login jika ada kolomnya
             $db->query("UPDATE users SET last_login = NOW() WHERE id = " . $user['id']);
