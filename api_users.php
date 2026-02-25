@@ -21,12 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && empty($action)) {
 }
 
 if ($action === 'create') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    $username     = trim($_POST['username']     ?? '');
+    $password     = $_POST['password']          ?? '';
     $display_name = trim($_POST['display_name'] ?? '');
-    $role = $_POST['role'] ?? 'teacher';
-    $level = $_POST['level'] ?? 'sd';
-    $is_active = intval($_POST['is_active'] ?? 1);
+    $role         = $_POST['role']              ?? 'teacher';
+    $level        = $_POST['level']             ?? 'sd';
+    $is_active    = intval($_POST['is_active']  ?? 1);
 
     if (empty($username) || empty($password)) {
         echo json_encode(['success' => false, 'message' => 'Username and password are required']);
@@ -41,21 +41,42 @@ if ($action === 'create') {
         exit;
     }
 
-    // Hash password properly (or match the login logic. The login logic supports md5, plain, or password_verify)
-    // To modernize we should use password_hash, but for compatibility with login let's just use password_hash
-    // Actually our login.php does `password_verify($password, $user['password'])` as a fallback
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-    $stmt = $db->prepare("INSERT INTO users (username, password, display_name, role, level, is_active) VALUES (:u, :p, :dn, :r, :lvl, :ia)");
+    // Step 1: INSERT user dulu (tanpa avatar), dapatkan ID baru
+    $stmt = $db->prepare("INSERT INTO users (username, password, password_hash, display_name, role, level, is_active, avatar) VALUES (:u, :p, :ph, :dn, :r, :lvl, :ia, :av)");
     $stmt->execute([
-        ':u' => $username,
-        ':p' => $hashed_password,
+        ':u'  => $username,
+        ':p'  => $hashed_password,
+        ':ph' => $hashed_password,
         ':dn' => $display_name,
-        ':r' => $role,
-        ':lvl' => $level,
-        ':ia' => $is_active
+        ':r'  => $role,
+        ':lvl'=> $level,
+        ':ia' => $is_active,
+        ':av' => 'assets/png/avatar.png', // default dulu
     ]);
-    echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+    $new_id = $db->lastInsertId();
+
+    // Step 2: Upload avatar (setelah user berhasil dibuat, pakai ID yang benar)
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $file    = $_FILES['avatar'];
+        $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        if (in_array($ext, $allowed) && $file['size'] <= 2 * 1024 * 1024) {
+            $upload_dir   = 'uploads/avatars/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+            // Nama file pakai user ID yang pasti unik — tidak akan ada orphan file
+            $new_filename = 'avatar_u' . $new_id . '_' . time() . '.' . $ext;
+            if (move_uploaded_file($file['tmp_name'], $upload_dir . $new_filename)) {
+                $avatar_url = $upload_dir . $new_filename;
+                // Step 3: UPDATE kolom avatar dengan path yang benar
+                $db->prepare("UPDATE users SET avatar = :av WHERE id = :id")
+                   ->execute([':av' => $avatar_url, ':id' => $new_id]);
+            }
+        }
+    }
+
+    echo json_encode(['success' => true, 'id' => $new_id]);
     exit;
 }
 
@@ -83,9 +104,9 @@ if ($action === 'update') {
 
     if (!empty($password)) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $db->prepare("UPDATE users SET username=:u, password=:p, display_name=:dn, role=:r, level=:lvl, is_active=:ia WHERE id=:id");
+        $stmt = $db->prepare("UPDATE users SET username=:u, password=:p, password_hash=:ph, display_name=:dn, role=:r, level=:lvl, is_active=:ia WHERE id=:id");
         $stmt->execute([
-            ':u' => $username, ':p' => $hashed_password, ':dn' => $display_name, ':r' => $role, ':lvl' => $level, ':ia' => $is_active, ':id' => $id
+            ':u' => $username, ':p' => $hashed_password, ':ph' => $hashed_password, ':dn' => $display_name, ':r' => $role, ':lvl' => $level, ':ia' => $is_active, ':id' => $id
         ]);
     } else {
         $stmt = $db->prepare("UPDATE users SET username=:u, display_name=:dn, role=:r, level=:lvl, is_active=:ia WHERE id=:id");

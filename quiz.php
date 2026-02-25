@@ -483,9 +483,9 @@ $questionsJson = json_encode(array_values($questions));
          class="btn-result btn-result-outline">
         <i class="fa fa-arrow-left"></i> Paket Lain
       </a>
-      <a href="subjects.php?level=<?= $level ?>"
+      <a href="<?= isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'student' ? 'student.php' : 'subjects.php?level=' . $level ?>"
          class="btn-result btn-result-outline">
-        <i class="fa fa-book-open"></i> Mata Pelajaran
+        <i class="fa fa-book-open"></i> <?= isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'student' ? 'Dashboard Saya' : 'Mata Pelajaran' ?>
       </a>
     </div>
     <div class="review-list" id="review-list"></div>
@@ -551,6 +551,8 @@ let QUESTIONS  = <?= $questionsJson ?>;
 const TIME_LIMIT = <?= $timeLimit ?>;
 const TOTAL      = QUESTIONS.length;
 const PKG_ID     = <?= $packageId ?>;
+const PLAYER_NAME = <?= json_encode($_SESSION['user_name'] ?? '') ?>;
+const USER_ROLE  = <?= json_encode($_SESSION['user_role'] ?? 'guest') ?>;
 
 let currentIdx   = 0;
 let score        = 0;
@@ -876,10 +878,11 @@ function showResult() {
 
   // Predikat
   let predikat, predikatBg, predikatColor, title;
-  if (pct >= 90)      { predikat='🏆 Sempurna!';    predikatBg='#fef3c7'; predikatColor='#92400e'; title='Luar Biasa!'; }
-  else if (pct >= 75) { predikat='⭐ Hebat!';        predikatBg='#d1fae5'; predikatColor='#065f46'; title='Bagus Sekali!'; }
-  else if (pct >= 60) { predikat='👍 Baik';          predikatBg='#dbeafe'; predikatColor='#1d4ed8'; title='Terus Berlatih!'; }
-  else                { predikat='💪 Terus Semangat!';predikatBg='#fce7f3'; predikatColor='#9d174d'; title='Jangan Menyerah!'; }
+  const nameStr = PLAYER_NAME ? ', ' + PLAYER_NAME : '';
+  if (pct >= 90)      { predikat='🏆 Sempurna!';    predikatBg='#fef3c7'; predikatColor='#92400e'; title='Luar Biasa' + nameStr + '!'; }
+  else if (pct >= 75) { predikat='⭐ Hebat!';        predikatBg='#d1fae5'; predikatColor='#065f46'; title='Bagus Sekali' + nameStr + '!'; }
+  else if (pct >= 60) { predikat='👍 Baik';          predikatBg='#dbeafe'; predikatColor='#1d4ed8'; title='Terus Berlatih' + nameStr + '!'; }
+  else                { predikat='💪 Terus Semangat!';predikatBg='#fce7f3'; predikatColor='#9d174d'; title='Jangan Menyerah' + nameStr + '!'; }
 
   const badge = document.getElementById('predikat-badge');
   badge.textContent = predikat;
@@ -887,7 +890,10 @@ function showResult() {
   badge.style.color = predikatColor;
 
   document.getElementById('result-title').textContent = title;
-  document.getElementById('result-sub').textContent   = correctCount + ' dari ' + TOTAL + ' soal benar';
+  const resultSub = PLAYER_NAME
+    ? PLAYER_NAME + ' mendapat ' + correctCount + ' dari ' + TOTAL + ' soal benar'
+    : correctCount + ' dari ' + TOTAL + ' soal benar';
+  document.getElementById('result-sub').textContent = resultSub;
   document.getElementById('rstat-correct').textContent = correctCount;
   document.getElementById('rstat-wrong').textContent   = wrongCount;
 
@@ -963,8 +969,8 @@ async function buildReview() {
 async function saveSession(pct, duration) {
   try {
     const fd = new FormData();
-    fd.append('package_id',   <?= $packageId ?>);
-    fd.append('player_name',  'Siswa');
+    fd.append('package_id',   PKG_ID);
+    fd.append('player_name',  PLAYER_NAME || 'Tamu');
     fd.append('score',        pct);
     fd.append('total_q',      TOTAL);
     fd.append('correct',      correctCount);

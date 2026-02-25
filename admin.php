@@ -18,6 +18,11 @@ $statCats = $db->query("SELECT COUNT(*) FROM categories")->fetchColumn();
 $statPkgs = $db->query("SELECT COUNT(*) FROM packages")->fetchColumn();
 $statQs   = $db->query("SELECT COUNT(*) FROM questions")->fetchColumn();
 $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
+
+// Ambil info admin saat ini
+$userId = $_SESSION['user_id'];
+$currentUser = $db->query("SELECT * FROM users WHERE id = $userId")->fetch(PDO::FETCH_ASSOC);
+$userAvatar = (!empty($currentUser['avatar']) && file_exists($currentUser['avatar'])) ? $currentUser['avatar'] : 'assets/png/avatar.png';
 ?>
 <!doctype html>
 <html lang="id">
@@ -31,7 +36,9 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
   <!-- Font Awesome -->
   <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
   <!-- DataTables -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/css/dataTables.bootstrap5.min.css">
+  <!-- Blank favicon to avoid 404 -->
+  <link rel="icon" href="data:image/x-icon;base64,">
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
@@ -116,9 +123,9 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       color: rgba(255,255,255,.3);
     }
 
-    .nav-item { margin: .15rem .75rem; }
+    .sidebar .nav-item { margin: .15rem .75rem; }
 
-    .nav-link {
+    .sidebar .nav-link {
       display: flex;
       align-items: center;
       gap: .75rem;
@@ -134,12 +141,12 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       background: none;
       width: 100%;
     }
-    .nav-link i { width: 18px; text-align: center; font-size: .95rem; }
-    .nav-link:hover {
+    .sidebar .nav-link i { width: 18px; text-align: center; font-size: .95rem; }
+    .sidebar .nav-link:hover {
       background: rgba(255,255,255,.08);
       color: #fff;
     }
-    .nav-link.active {
+    .sidebar .nav-link.active {
       background: var(--primary);
       color: #fff;
       box-shadow: 0 4px 12px rgba(79,70,229,.4);
@@ -683,8 +690,13 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       </button>
     </div>
     <div class="nav-item">
+      <button class="nav-link" data-panel="images" onclick="showPanel('images', this)">
+        <i class="fa fa-images"></i> Gambar Soal
+      </button>
+    </div>
+    <div class="nav-item">
       <button class="nav-link" data-panel="import" onclick="showPanel('import', this)">
-        <i class="fa fa-file-import"></i> Import JSON
+        <i class="fa fa-file-import"></i> Import Soal
       </button>
     </div>
 
@@ -697,9 +709,28 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
     </div>
     <?php endif; ?>
 
+    <div class="sidebar-section">Nilai</div>
+    <div class="nav-item">
+      <button class="nav-link" data-panel="grades" onclick="showPanel('grades', this)">
+        <i class="fa fa-chart-bar"></i> Kelola Nilai
+      </button>
+    </div>
+
+    <?php if ($_SESSION['user_role'] === 'teacher'): ?>
+    <div class="sidebar-section">Akun</div>
+    <div class="nav-item">
+      <a href="profile.php" class="nav-link" style="text-decoration:none;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa fa-user-pen"></i> Edit Profil Saya
+      </a>
+    </div>
+    <?php endif; ?>
+
     <div class="sidebar-footer">
       <a href="index.php" target="_blank">
         <i class="fa fa-arrow-up-right-from-square"></i> Lihat Halaman Kuis
+      </a>
+      <a href="logout.php" onclick="return confirm('Yakin ingin keluar?')" style="color:#f87171; margin-top:.25rem;">
+        <i class="fa fa-right-from-bracket"></i> Keluar / Logout
       </a>
     </div>
   </aside>
@@ -715,7 +746,7 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       </div>
       <div class="topbar-right">
         <a href="javascript:void(0)" onclick="openProfileModal()">
-          <i class="fa fa-user-circle"></i> Profil Saya
+          <img src="<?= htmlspecialchars($userAvatar) ?>?v=<?= time() ?>" alt="User Avatar" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--border);"> Profil Saya
         </a>
         <a href="index.php" target="_blank" style="margin-left:.75rem">
           <i class="fa fa-eye"></i> Preview Kuis
@@ -784,7 +815,7 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
                 <i class="fa fa-plus"></i> Tambah Soal
               </button>
               <button class="btn-success-custom" style="background:#0ea5e9" onclick="showPanel('import', document.querySelector('[data-panel=import]'))">
-                <i class="fa fa-file-import"></i> Import JSON
+                <i class="fa fa-file-import"></i> Import Soal
               </button>
             </div>
           </div>
@@ -908,10 +939,18 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
 
       <!-- ===================== IMPORT JSON ===================== -->
       <div class="panel" id="panel-import">
-        <div class="panel-header">
-          <div class="panel-title">
-            <i class="fa fa-file-import"></i> Import Soal via JSON
-          </div>
+        <div class="panel-header" style="align-items: flex-end; padding-bottom: 0;">
+          <ul class="nav nav-tabs" id="importTabs" role="tablist" style="border-bottom: 0; margin-bottom: -1px;">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-json" type="button" style="border-top-left-radius: .5rem; border-top-right-radius: .5rem; padding: .65rem 1.25rem; font-size: 1.05rem; font-family: 'Fredoka One', cursive; color: var(--text); display: flex; align-items: center; gap: .5rem;"><i class="fa fa-file-code" style="color: var(--primary);"></i> Import dari JSON</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-excel" type="button" style="border-top-left-radius: .5rem; border-top-right-radius: .5rem; padding: .65rem 1.25rem; font-size: 1.05rem; font-family: 'Fredoka One', cursive; color: var(--text); display: flex; align-items: center; gap: .5rem;"><i class="fa fa-file-excel" style="color: var(--primary);"></i> Import dari Excel</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-gsheet" type="button" style="border-top-left-radius: .5rem; border-top-right-radius: .5rem; padding: .65rem 1.25rem; font-size: 1.05rem; font-family: 'Fredoka One', cursive; color: var(--text); display: flex; align-items: center; gap: .5rem;"><i class="fa fa-table" style="color: var(--primary);"></i> Import dari Sheet</button>
+            </li>
+          </ul>
           <!-- Tombol tersembunyi paste JSON -->
           <button class="paste-toggle-btn" id="paste-toggle-btn" onclick="togglePasteEditor()" title="Paste JSON langsung">
             <i class="fa fa-clipboard-list"></i>
@@ -981,11 +1020,28 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
           </div>
         </div>
         <div class="panel-body">
-          <div class="row g-4">
-            <!-- Petunjuk format -->
-            <div class="col-lg-5">
-              <p class="fw-bold mb-2">Format JSON yang dibutuhkan:</p>
-              <pre style="background:#1e293b;color:#e2e8f0;padding:1.25rem;border-radius:12px;font-size:.8rem;line-height:1.6;overflow-x:auto">[
+          <div class="mb-4">
+            <label class="form-label">Pilih Paket Tujuan <span class="text-danger">*</span></label>
+            <div class="d-flex gap-2 align-items-center">
+              <select class="form-select" id="import-package" style="flex:1">
+                <option value="">— Pilih paket —</option>
+                <?php foreach($allPkgs as $p): ?>
+                <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['cat_name'].' — '.$p['name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <button class="btn" id="btn-refresh-pkg" type="button" onclick="refreshPackagesList()" style="font-family: 'Fredoka One', cursive; font-size: 1rem; color: var(--text); display: flex; align-items: center; gap: .5rem; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; padding: .35rem .85rem;">
+                <i class="fa fa-sync-alt" style="color: var(--primary);"></i> Refresh Paket
+              </button>
+            </div>
+          </div>
+
+          <div class="tab-content">
+            <!-- TAB JSON -->
+            <div class="tab-pane fade show active" id="tab-json">
+              <div class="row g-4">
+                <div class="col-lg-5">
+                  <p class="fw-bold mb-2">Format JSON yang dibutuhkan:</p>
+                  <pre style="background:#1e293b;color:#e2e8f0;padding:1.25rem;border-radius:12px;font-size:.8rem;line-height:1.6;overflow-x:auto">[
   {
     "question_text": "2 + 2 = ?",
     "option_a": "3",
@@ -993,55 +1049,118 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
     "option_c": "5",
     "option_d": "6",
     "correct_option": "B",
-    "explanation": "2 + 2 = 4"
-  },
-  ...
+    "explanation": "2 + 2 = 4",
+    "image_url": "https://example.com/img.jpg"
+  }
 ]</pre>
-              <div class="mt-3" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:1rem;font-size:.85rem">
-                <strong style="color:#15803d"><i class="fa fa-circle-check me-1"></i> Tips:</strong>
-                <ul style="margin:.5rem 0 0 1rem;color:#166534">
-                  <li><code>correct_option</code> harus huruf A, B, C, atau D</li>
-                  <li><code>explanation</code> boleh kosong</li>
-                  <li>Semua field lain wajib diisi</li>
-                </ul>
+                  <div class="mt-3" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:1rem;font-size:.85rem">
+                    <strong style="color:#15803d"><i class="fa fa-circle-check me-1"></i> Tips JSON:</strong>
+                    <ul style="margin:.5rem 0 0 1rem;color:#166534">
+                      <li><code>correct_option</code> wajib A, B, C, atau D</li>
+                      <li><code>explanation</code> & <code>image_url</code> boleh kosong/hilang</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-lg-7">
+                  <div class="import-dropzone" id="dropzone" onclick="document.getElementById('json-file').click()">
+                    <i class="fa fa-cloud-arrow-up"></i>
+                    <strong>Klik atau drag & drop file JSON</strong>
+                    <p style="font-size:.82rem;margin-top:.25rem">Format: .json | Maks 2MB</p>
+                  </div>
+                  <input type="file" id="json-file" accept=".json" style="display:none" onchange="handleJsonFile(event)">
+                </div>
               </div>
-              <button class="btn-primary-custom mt-3" onclick="downloadTemplate()">
-                <i class="fa fa-download"></i> Download Template JSON
-              </button>
             </div>
 
-            <!-- Form upload -->
-            <div class="col-lg-7">
-              <div class="mb-3">
-                <label class="form-label">Pilih Paket Tujuan <span class="text-danger">*</span></label>
-                <select class="form-select" id="import-package">
-                  <option value="">— Pilih paket —</option>
-                  <?php foreach($allPkgs as $p): ?>
-                  <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['cat_name'].' — '.$p['name']) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </div>
-
-              <div class="import-dropzone" id="dropzone" onclick="document.getElementById('json-file').click()">
-                <i class="fa fa-cloud-arrow-up"></i>
-                <strong>Klik atau drag & drop file JSON di sini</strong>
-                <p style="font-size:.82rem;margin-top:.25rem">Format: .json | Maks 2MB</p>
-              </div>
-              <input type="file" id="json-file" accept=".json" style="display:none" onchange="handleJsonFile(event)">
-
-              <div id="import-preview" style="display:none;margin-top:1rem">
-                <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:1rem">
-                  <div class="d-flex align-items-center justify-content-between mb-2">
-                    <strong id="import-filename" style="font-size:.9rem"></strong>
-                    <span id="import-count" style="font-size:.8rem;color:var(--muted)"></span>
+            <!-- TAB EXCEL -->
+            <div class="tab-pane fade" id="tab-excel">
+              <div class="row g-4">
+                <div class="col-lg-5">
+                  <p class="fw-bold mb-2">Instruksi Import Excel:</p>
+                  <p class="text-muted" style="font-size:.9rem">Gunakan template bawaan kami untuk memastikan kolom tabel terbaca dengan akurat oleh sistem import.</p>
+                  <div class="dropdown mb-3 w-100">
+                    <button class="btn btn-outline-primary btn-sm w-100 dropdown-toggle" type="button" id="dropdownTemplate" data-bs-toggle="dropdown" aria-expanded="false">
+                      <i class="fa fa-download"></i> Download Template
+                    </button>
+                    <ul class="dropdown-menu w-100" aria-labelledby="dropdownTemplate">
+                      <li><a class="dropdown-item" href="assets/template/Template_Soal_Kuis_V2.xlsx" target="_blank"><i class="fa fa-file-excel me-2 text-success"></i>Template Excel (.xlsx)</a></li>
+                      <li><a class="dropdown-item" href="assets/template/Template_Soal_Kuis_V2.csv" target="_blank"><i class="fa fa-file-csv me-2 text-primary"></i>Template CSV (.csv)</a></li>
+                      <li><a class="dropdown-item" href="assets/template/Template_Soal_Kuis_V2.ods" target="_blank"><i class="fa fa-file-lines me-2 text-warning"></i>Template ODS (.ods)</a></li>
+                    </ul>
                   </div>
-                  <div id="import-errors" style="display:none;background:#fef2f2;border-radius:8px;padding:.75rem;font-size:.82rem;color:#b91c1c;margin-bottom:.75rem"></div>
-                  <button class="btn-success-custom w-100" id="import-submit-btn" onclick="submitImport()">
-                    <i class="fa fa-upload"></i> Import Sekarang
+                  <div style="background:#fefce8;border:1px solid #fef08a;border-radius:10px;padding:1rem;font-size:.85rem">
+                    <strong style="color:#854d0e"><i class="fa fa-triangle-exclamation me-1"></i> Aturan Tabel:</strong>
+                    <ul style="margin:.5rem 0 0 1rem;color:#713f12">
+                      <li>Baris pertama (Header) <strong>wajib</strong> sama persis dengan template.</li>
+                      <li>Simpan file Anda dalam bentuk `.xlsx` atau `.csv` sebelum mengunggah.</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-lg-7">
+                  <div class="import-dropzone" id="dropzone-excel" onclick="document.getElementById('excel-file').click()">
+                    <i class="fa fa-file-excel" style="color:#10b981"></i>
+                    <strong>Klik atau drag & drop file Excel/CSV</strong>
+                    <p style="font-size:.82rem;margin-top:.25rem">Format: .xlsx, .xls, .csv</p>
+                  </div>
+                  <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleExcelFile(event)">
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB GSHEET -->
+            <div class="tab-pane fade" id="tab-gsheet">
+              <div class="row g-4">
+                <div class="col-lg-5">
+                  <p class="fw-bold mb-2">Instruksi Google Sheets:</p>
+                  <ol style="font-size:.9rem;color:var(--text);padding-left:1.2rem">
+                    <li class="mb-2">Gunakan format kolom yang sama dengan template CSV.</li>
+                    <li class="mb-2">Pastikan pengaturan <strong>Share (Bagikan)</strong> sheet Anda disetel ke <strong>"Anyone with the link / Siapa saja yang memiliki link"</strong>.</li>
+                    <li class="mb-2">Salin tautan (URL) sheet tersebut dan tempel pada form di samping.</li>
+                  </ol>
+                </div>
+                <div class="col-lg-7">
+                  <div class="mb-3">
+                    <label class="form-label">Tautan (URL) Google Sheets <span class="text-danger">*</span></label>
+                    <input type="text" id="gsheet-url" class="form-control" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+                  </div>
+                  <button class="btn-primary-custom w-100" onclick="handleGSheet()">
+                    <i class="fa fa-cloud-arrow-down"></i> Tarik Data dari Link
                   </button>
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- GLOBAL PREVIEW BOX -->
+          <div id="import-preview" style="display:none;margin-top:2.5rem;border-top:1px solid var(--border);padding-top:1.5rem">
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:1rem">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <strong id="import-filename" style="font-size:.9rem"></strong>
+                <span id="import-count" style="font-size:.8rem;color:var(--muted)"></span>
+              </div>
+              <div id="import-errors" style="display:none;background:#fef2f2;border-radius:8px;padding:.75rem;font-size:.82rem;color:#b91c1c;margin-bottom:.75rem"></div>
+              <button class="btn-success-custom w-100" id="import-submit-btn" onclick="submitImport()">
+                <i class="fa fa-upload"></i> Jalankan Import
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ===================== IMAGES ===================== -->
+      <div class="panel" id="panel-images">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i class="fa fa-images"></i> Gambar Soal
+          </div>
+          <button class="btn-primary-custom" onclick="document.getElementById('img-upload-input').click()">
+            <i class="fa fa-upload"></i> Upload
+          </button>
+          <input type="file" id="img-upload-input" accept="image/*" style="display:none" onchange="uploadImage(this)">
+        </div>
+        <div class="panel-body">
+          <div class="row g-3" id="images-grid">
+            <!-- Diisi JS -->
           </div>
         </div>
       </div>
@@ -1053,7 +1172,7 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
           <div class="panel-title">
             <i class="fa fa-users-gear"></i> Kelola Pengguna
           </div>
-          <button class="btn-primary-custom" onclick="openUserModal()">
+          <button class="btn-primary-custom" onclick="openAddUserModal()">
             <i class="fa fa-plus"></i> Tambah Pengguna
           </button>
         </div>
@@ -1078,41 +1197,136 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       </div>
       <?php endif; ?>
 
+      <!-- ===================== GRADES ===================== -->
+      <div class="panel" id="panel-grades">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i class="fa fa-chart-bar"></i> Kelola Nilai
+          </div>
+          <button class="btn-primary-custom" onclick="exportGrades()">
+            <i class="fa fa-file-csv"></i> Export CSV
+          </button>
+        </div>
+        <div class="panel-body">
+
+          <?php if ($_SESSION['user_role'] === 'admin'): ?>
+          <!-- ADMIN: 3 tabs -->
+          <ul class="nav nav-tabs mb-3" id="gradesTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="tab-sd-btn" data-bs-toggle="tab" data-bs-target="#tab-grades-sd" type="button"
+                onclick="loadGrades('sd')" style="font-family:'Fredoka One',cursive;color:var(--text)">
+                <i class="fa fa-school text-danger me-1"></i>SD
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tab-smp-btn" data-bs-toggle="tab" data-bs-target="#tab-grades-smp" type="button"
+                onclick="loadGrades('smp')" style="font-family:'Fredoka One',cursive;color:var(--text)">
+                <i class="fa fa-school text-info me-1"></i>SMP
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tab-sma-btn" data-bs-toggle="tab" data-bs-target="#tab-grades-sma" type="button"
+                onclick="loadGrades('sma')" style="font-family:'Fredoka One',cursive;color:var(--text)">
+                <i class="fa fa-school text-warning me-1"></i>SMA
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab-grades-sd">
+              <div class="table-responsive">
+                <table id="tbl-grades-sd" class="table table-hover w-100">
+                  <thead><tr>
+                    <th>#</th><th>Nama Siswa</th><th>Paket</th><th>Mata Pelajaran</th>
+                    <th>Nilai</th><th>Benar</th><th>Salah</th><th>Tipe</th><th>Waktu</th><th>Aksi</th>
+                  </tr></thead>
+                  <tbody id="tbody-grades-sd"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="tab-grades-smp">
+              <div class="table-responsive">
+                <table id="tbl-grades-smp" class="table table-hover w-100">
+                  <thead><tr>
+                    <th>#</th><th>Nama Siswa</th><th>Paket</th><th>Mata Pelajaran</th>
+                    <th>Nilai</th><th>Benar</th><th>Salah</th><th>Tipe</th><th>Waktu</th><th>Aksi</th>
+                  </tr></thead>
+                  <tbody id="tbody-grades-smp"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="tab-grades-sma">
+              <div class="table-responsive">
+                <table id="tbl-grades-sma" class="table table-hover w-100">
+                  <thead><tr>
+                    <th>#</th><th>Nama Siswa</th><th>Paket</th><th>Mata Pelajaran</th>
+                    <th>Nilai</th><th>Benar</th><th>Salah</th><th>Tipe</th><th>Waktu</th><th>Aksi</th>
+                  </tr></thead>
+                  <tbody id="tbody-grades-sma"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <?php else: ?>
+          <!-- TEACHER: single table, level-filtered by server -->
+          <div class="table-responsive">
+            <table id="tbl-grades-teacher" class="table table-hover w-100">
+              <thead><tr>
+                <th>#</th><th>Nama Siswa</th><th>Paket</th><th>Mata Pelajaran</th>
+                <th>Nilai</th><th>Benar</th><th>Salah</th><th>Tipe</th><th>Waktu</th><th>Aksi</th>
+              </tr></thead>
+              <tbody id="tbody-grades-teacher"></tbody>
+            </table>
+          </div>
+          <?php endif; ?>
+
+        </div>
+      </div>
+
     </div><!-- /page-wrapper -->
   </div><!-- /main-content -->
 </div><!-- /admin-layout -->
 
+
 <!-- Toast -->
-<div class="toast-container" id="toast-container"></div>
+<div class="toast-container p-3" id="toast-container" style="position:fixed;top:1rem;right:1rem;z-index:9999;pointer-events:none;"></div>
 
 <?php if ($_SESSION['user_role'] === 'admin'): ?>
-<!-- ===================== MODAL: USER ===================== -->
-<div class="modal fade" id="userModal" tabindex="-1">
+<!-- ===================== MODAL: ADD USER ===================== -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="userModalTitle">Tambah Pengguna</h5>
+        <h5 class="modal-title">Tambah Pengguna</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <input type="hidden" id="user-id">
         <div class="row g-3">
+          <div class="col-12 text-center mb-2">
+            <img id="add-user-avatar-preview" src="assets/png/avatar.png" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--border);margin-bottom:.5rem;">
+            <div>
+              <input type="file" id="add-user-avatar" accept="image/*" class="form-control form-control-sm d-inline-block" style="max-width:220px">
+            </div>
+          </div>
           <div class="col-12">
             <label class="form-label">Username <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="user-username" placeholder="e.g. jhon.doe">
+            <input type="text" class="form-control" id="add-user-username" placeholder="e.g. jhon.doe">
           </div>
           <div class="col-12">
             <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="user-name" placeholder="e.g. Jhon Doe">
+            <input type="text" class="form-control" id="add-user-name" placeholder="e.g. Jhon Doe">
           </div>
-          <div class="col-12">
-            <label class="form-label">Password</label>
-            <input type="password" class="form-control" id="user-password" placeholder="Kosongkan jika tidak ingin diubah">
-            <small class="text-muted" id="user-password-help" style="display:none">Biarkan kosong saat update untuk menjaga sandi lama.</small>
+          <div class="col-sm-6">
+            <label class="form-label">Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="add-user-password">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Ulangi Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="add-user-password-confirm">
           </div>
           <div class="col-sm-6">
             <label class="form-label">Role</label>
-            <select class="form-select" id="user-role">
+            <select class="form-select" id="add-user-role" onchange="handleUserRoleChange('add')">
               <option value="teacher">Guru / Teacher</option>
               <option value="admin">Administrator</option>
               <option value="student">Siswa / Student</option>
@@ -1120,7 +1334,7 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
           </div>
           <div class="col-sm-6">
             <label class="form-label">Level Akses</label>
-            <select class="form-select" id="user-level">
+            <select class="form-select" id="add-user-level">
               <option value="sd">SD</option>
               <option value="smp">SMP</option>
               <option value="sma">SMA</option>
@@ -1129,7 +1343,7 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
           </div>
           <div class="col-12">
             <label class="form-label">Status Aktif</label>
-            <select class="form-select" id="user-active">
+            <select class="form-select" id="add-user-active">
               <option value="1">Aktif</option>
               <option value="0">Diblokir / Tidak Aktif</option>
             </select>
@@ -1138,7 +1352,67 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
       </div>
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-        <button class="btn-primary-custom" onclick="saveUser()">
+        <button class="btn-primary-custom" onclick="saveAddUser()">
+          <i class="fa fa-save"></i> Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: EDIT USER ===================== -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Pengguna</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-user-id">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Username <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="edit-user-username" placeholder="e.g. jhon.doe">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="edit-user-name" placeholder="e.g. Jhon Doe">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Password Baru</label>
+            <input type="password" class="form-control" id="edit-user-password" placeholder="Kosongkan jika tidak ingin diubah">
+            <small class="text-muted">Biarkan kosong untuk menjaga sandi lama.</small>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Role</label>
+            <select class="form-select" id="edit-user-role" onchange="handleUserRoleChange('edit')">
+              <option value="teacher">Guru / Teacher</option>
+              <option value="admin">Administrator</option>
+              <option value="student">Siswa / Student</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Level Akses</label>
+            <select class="form-select" id="edit-user-level">
+              <option value="sd">SD</option>
+              <option value="smp">SMP</option>
+              <option value="sma">SMA</option>
+              <option value="all">Semua (All)</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Status Aktif</label>
+            <select class="form-select" id="edit-user-active">
+              <option value="1">Aktif</option>
+              <option value="0">Diblokir / Tidak Aktif</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+        <button class="btn-primary-custom" onclick="saveEditUser()">
           <i class="fa fa-save"></i> Simpan
         </button>
       </div>
@@ -1181,6 +1455,49 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
         <button class="btn btn-light" data-bs-dismiss="modal">Batal</button>
         <button class="btn-primary-custom" onclick="saveProfile()">
           <i class="fa fa-save"></i> Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: REMEDIAL ===================== -->
+<div class="modal fade" id="remedialModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#ef4444);">
+        <h5 class="modal-title" style="color:#fff"><i class="fa fa-pen-to-square me-2"></i>Input Nilai Remedial</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="remedial-session-id">
+        <div class="mb-3">
+          <label class="form-label fw-bold">Siswa</label>
+          <div id="remedial-student-name" class="form-control bg-light" style="pointer-events:none;color:var(--muted)"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Paket Soal</label>
+          <div id="remedial-package-name" class="form-control bg-light" style="pointer-events:none;color:var(--muted)"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Nilai Sebelumnya</label>
+          <div id="remedial-old-score" class="form-control bg-light text-center fw-bold" style="pointer-events:none;color:#ef4444;font-size:1.3rem"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Nilai Remedial <span class="text-danger">*</span></label>
+          <input type="number" class="form-control text-center fw-bold" id="remedial-new-score"
+            min="0" max="100" placeholder="0 – 100" style="font-size:1.4rem;color:var(--primary)">
+        </div>
+        <div class="mb-1">
+          <label class="form-label fw-bold">Catatan</label>
+          <input type="text" class="form-control" id="remedial-note" placeholder="e.g. Remedial Ujian Tengah Semester">
+        </div>
+        <small class="text-muted d-block mt-2"><i class="fa fa-info-circle"></i> Nilai lama tidak akan dihapus. Nilai baru disimpan sebagai record terpisah.</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+        <button class="btn btn-warning fw-bold" onclick="submitRemedial()">
+          <i class="fa fa-save"></i> Simpan Remedial
         </button>
       </div>
     </div>
@@ -1232,6 +1549,77 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
         <button class="btn-primary-custom" onclick="saveCat()">
           <i class="fa fa-save"></i> Simpan
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: IMAGE ACTION ===================== -->
+<div class="modal fade" id="imageActionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Aksi Gambar</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img id="img-action-preview" src="" style="max-width:100%; max-height:200px; border-radius:8px; margin-bottom:1rem">
+        <input type="hidden" id="img-action-filename">
+        <input type="text" class="form-control mb-3 text-center" id="img-action-url" readonly style="font-size: .8rem">
+        <div class="d-grid gap-2">
+          <button class="btn btn-outline-primary" onclick="copyImageUrl()">
+            <i class="fa fa-copy"></i> Copy Link
+          </button>
+          <button class="btn btn-outline-danger" onclick="confirmDeleteImage()">
+            <i class="fa fa-trash"></i> Hapus Gambar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: IMAGE PICKER ===================== -->
+<div class="modal fade" id="imagePickerModal" tabindex="-1" style="z-index: 1060;">
+  <div class="modal-dialog modal-dialog-centered modal-lg" style="z-index: 1061;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Pilih Gambar Soal</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-tabs mb-3" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-picker-upload" type="button" style="font-family: 'Fredoka One', cursive; color: var(--text);">
+              <i class="fa fa-upload text-primary me-1"></i> Upload Baru
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-picker-gallery" type="button" style="font-family: 'Fredoka One', cursive; color: var(--text);">
+              <i class="fa fa-images text-primary me-1"></i> Pilih dari Galeri
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content">
+          <!-- TAB UPLOAD BARU -->
+          <div class="tab-pane fade show active" id="tab-picker-upload">
+            <div class="text-center p-4" style="border: 2px dashed var(--border); border-radius: 12px; background: #f8fafc">
+              <i class="fa fa-cloud-arrow-up fa-3x mb-3 text-muted"></i>
+              <div class="mb-3">
+                <input type="file" id="picker-upload-input" accept="image/*" class="form-control" style="max-width: 300px; margin: 0 auto">
+              </div>
+              <button class="btn btn-primary" id="btn-picker-upload" onclick="uploadPickerImage()">
+                <i class="fa fa-upload"></i> Upload & Pilih
+              </button>
+            </div>
+          </div>
+          <!-- TAB GALERI -->
+          <div class="tab-pane fade" id="tab-picker-gallery">
+            <div class="row g-3" id="picker-gallery-grid" style="max-height: 400px; overflow-y: auto;">
+              <!-- Javascript akan mengisi galeri ini -->
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1364,7 +1752,12 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
           </div>
           <div class="col-12">
             <label class="form-label">Gambar Soal <small style="color:var(--muted)">(opsional)</small></label>
-            <input type="file" class="form-control" id="q-image" accept="image/png, image/jpeg, image/jpg, image/webp">
+            <div class="input-group">
+              <input type="text" class="form-control bg-light" id="q-image-url" readonly placeholder="Pilih gambar dari galeri atau upload baru...">
+              <button class="btn btn-outline-primary" type="button" onclick="openImagePicker()">
+                <i class="fa fa-image"></i> Pilih Gambar
+              </button>
+            </div>
           </div>
 
           <!-- Opsi A-D -->
@@ -1470,10 +1863,13 @@ $statSess = $db->query("SELECT COUNT(*) FROM quiz_sessions")->fetchColumn();
 <!-- ===================== SCRIPTS ===================== -->
 <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- jQuery (required by DataTables) -->
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
 <!-- DataTables -->
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<!-- SheetJS & PapaParse -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <script>
 // ================================================================
@@ -1489,8 +1885,10 @@ const pkgModal     = new bootstrap.Modal('#pkgModal');
 const qModal       = new bootstrap.Modal('#qModal');
 const confirmModal = new bootstrap.Modal('#confirmModal');
 const statModal    = new bootstrap.Modal('#statModal');
-const userModalEl  = document.getElementById('userModal');
-const userModal    = userModalEl ? new bootstrap.Modal(userModalEl) : null;
+const addUserModalEl  = document.getElementById('addUserModal');
+const addUserModal    = addUserModalEl ? new bootstrap.Modal(addUserModalEl) : null;
+const editUserModalEl = document.getElementById('editUserModal');
+const editUserModal   = editUserModalEl ? new bootstrap.Modal(editUserModalEl) : null;
 const profileModal = new bootstrap.Modal('#profileModal');
 
 // DataTable instances
@@ -1509,12 +1907,12 @@ function showPanel(name, btn) {
   const icons = {
     dashboard:'fa-gauge-high', categories:'fa-folder-tree',
     packages:'fa-layer-group', questions:'fa-circle-question', import:'fa-file-import',
-    users:'fa-users-gear'
+    users:'fa-users-gear', images:'fa-images', grades:'fa-chart-bar'
   };
   const labels = {
     dashboard:'Dashboard', categories:'Mata Pelajaran',
-    packages:'Paket Soal', questions:'Bank Soal', import:'Import JSON',
-    users:'Kelola Pengguna'
+    packages:'Paket Soal', questions:'Bank Soal', images: 'Gambar Soal', import:'Import Soal',
+    users:'Kelola Pengguna', grades:'Kelola Nilai'
   };
   document.getElementById('topbar-icon').className = 'fa ' + (icons[name] || 'fa-circle');
   document.getElementById('topbar-label').textContent = labels[name] || name;
@@ -1524,6 +1922,7 @@ function showPanel(name, btn) {
   if (name === 'packages'   && !dtPkg) loadPackages();
   if (name === 'questions'  && !dtQ)  loadQuestions();
   if (name === 'users'      && !dtUser) loadUsers();
+  if (name === 'grades') loadGrades(USER_ROLE_PHP === 'teacher' ? USER_LEVEL_PHP : 'sd');
 }
 
 // ================================================================
@@ -1819,7 +2218,7 @@ function openQModal(data=null) {
   document.getElementById('q-opt-d').value       = data?.option_d     ?? '';
   document.getElementById('q-explanation').value = data?.explanation   ?? '';
   document.getElementById('q-sort').value        = data?.sort_order    ?? 0;
-  document.getElementById('q-image').value       = ''; // reset file input
+  document.getElementById('q-image-url').value   = data?.image_url     ?? ''; // reset & fill URL
 
   // Set correct radio
   document.querySelectorAll('input[name="q-correct"]').forEach(r => r.checked = false);
@@ -1856,7 +2255,7 @@ async function saveQ() {
   const pkgId   = document.getElementById('q-pkg').value;
   const qtext   = document.getElementById('q-text').value.trim();
   const correct = document.querySelector('input[name="q-correct"]:checked')?.value;
-  const imgFile = document.getElementById('q-image').files[0];
+  const imgUrl  = document.getElementById('q-image-url').value;
 
   if (!catId || !pkgId || !qtext || !correct) {
     toast('Isi semua field yang wajib diisi', 'error'); return;
@@ -1875,10 +2274,7 @@ async function saveQ() {
   fd.append('correct_option',correct);
   fd.append('explanation',   document.getElementById('q-explanation').value);
   fd.append('sort_order',    document.getElementById('q-sort').value);
-  
-  if (imgFile) {
-      fd.append('image', imgFile);
-  }
+  if(imgUrl) fd.append('image_url', imgUrl);
 
   const res  = await fetch('api_questions.php', {method:'POST', body:fd});
   const json = await res.json();
@@ -1927,35 +2323,40 @@ function handleJsonFile(e) {
   if (file) processJsonFile(file);
 }
 
+function validateAndPreviewImport(data, filename) {
+  if (!Array.isArray(data)) { toast('Data harus berupa array', 'error'); return; }
+
+  const errors = [];
+  data.forEach((item, i) => {
+    const required = ['question_text','option_a','option_b','option_c','option_d','correct_option'];
+    required.forEach(f => { if (!item[f]) errors.push(`Baris ${i+1}: field "${f}" kosong`); });
+    if (item.correct_option && !['A','B','C','D'].includes(item.correct_option.toUpperCase()))
+      errors.push(`Baris ${i+1}: correct_option harus A/B/C/D`);
+  });
+
+  jsonImportData = data;
+  document.getElementById('import-filename').textContent = filename;
+  document.getElementById('import-count').textContent    = data.length + ' soal ditemukan';
+  const errDiv = document.getElementById('import-errors');
+  
+  if (errors.length) {
+    errDiv.innerHTML = '<strong>⚠️ Ada kesalahan format:</strong><br>' + errors.slice(0, 10).join('<br>') + (errors.length > 10 ? '<br>...dan kesalahan lainnya' : '');
+    errDiv.style.display = 'block';
+    document.getElementById('import-submit-btn').disabled = true;
+  } else {
+    errDiv.style.display = 'none';
+    document.getElementById('import-submit-btn').disabled = false;
+  }
+  document.getElementById('import-preview').style.display = 'block';
+}
+
 function processJsonFile(file) {
   if (!file.name.endsWith('.json')) { toast('File harus berformat .json', 'error'); return; }
   const reader = new FileReader();
   reader.onload = ev => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!Array.isArray(data)) { toast('JSON harus berupa array', 'error'); return; }
-
-      const errors = [];
-      data.forEach((item, i) => {
-        const required = ['question_text','option_a','option_b','option_c','option_d','correct_option'];
-        required.forEach(f => { if (!item[f]) errors.push(`Baris ${i+1}: field "${f}" kosong`); });
-        if (item.correct_option && !['A','B','C','D'].includes(item.correct_option.toUpperCase()))
-          errors.push(`Baris ${i+1}: correct_option harus A/B/C/D`);
-      });
-
-      jsonImportData = data;
-      document.getElementById('import-filename').textContent = file.name;
-      document.getElementById('import-count').textContent    = data.length + ' soal ditemukan';
-      const errDiv = document.getElementById('import-errors');
-      if (errors.length) {
-        errDiv.innerHTML = '<strong>⚠️ Ada kesalahan format:</strong><br>' + errors.join('<br>');
-        errDiv.style.display = 'block';
-        document.getElementById('import-submit-btn').disabled = true;
-      } else {
-        errDiv.style.display = 'none';
-        document.getElementById('import-submit-btn').disabled = false;
-      }
-      document.getElementById('import-preview').style.display = 'block';
+      validateAndPreviewImport(data, file.name);
     } catch(err) {
       toast('File JSON tidak valid: ' + err.message, 'error');
     }
@@ -1963,10 +2364,85 @@ function processJsonFile(file) {
   reader.readAsText(file);
 }
 
+function handleExcelFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const workbook = XLSX.read(data, {type: 'array'});
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, {defval: ''});
+      
+      const mappedData = rows.map(r => ({
+        question_text: r['Teks Soal'],
+        option_a: r['Opsi A'],
+        option_b: r['Opsi B'],
+        option_c: r['Opsi C'],
+        option_d: r['Opsi D'],
+        correct_option: String(r['Jawaban Benar (A/B/C/D)']).trim(),
+        explanation: r['Pembahasan (Opsional)'] || '',
+        image_url: r['URL Gambar Soal (Opsional)'] || ''
+      }));
+
+      validateAndPreviewImport(mappedData, file.name);
+    } catch(err) {
+      toast('Gagal membaca Excel: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleGSheet() {
+  const url = document.getElementById('gsheet-url').value.trim();
+  if (!url) { toast('Masukkan link Google Sheets', 'error'); return; }
+
+  const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) { toast('Link Google Sheets tidak valid', 'error'); return; }
+  const docId = match[1];
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv`;
+
+  const btn = document.querySelector('#tab-gsheet button');
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menarik Data...';
+  btn.disabled = true;
+
+  Papa.parse(csvUrl, {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      
+      const rows = results.data;
+      const mappedData = rows.map(r => ({
+        question_text: r['Teks Soal'],
+        option_a: r['Opsi A'],
+        option_b: r['Opsi B'],
+        option_c: r['Opsi C'],
+        option_d: r['Opsi D'],
+        correct_option: String(r['Jawaban Benar (A/B/C/D)']).trim(),
+        explanation: r['Pembahasan (Opsional)'] || '',
+        image_url: r['URL Gambar Soal (Opsional)'] || ''
+      }));
+
+      validateAndPreviewImport(mappedData, 'Google_Sheet_Import.csv');
+    },
+    error: function(err) {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      toast('Gagal menarik data. Pastikan Sheet bersifat Publik.', 'error');
+    }
+  });
+}
+
 async function submitImport() {
   const pkgId = document.getElementById('import-package').value;
   if (!pkgId)         { toast('Pilih paket tujuan terlebih dahulu', 'error'); return; }
-  if (!jsonImportData){ toast('Belum ada file JSON yang dipilih', 'error'); return; }
+  if (!jsonImportData){ toast('Belum ada data yang dipilih/ditarik', 'error'); return; }
 
   const pkg = allPackages.find(p => p.id == pkgId);
   const catId = pkg?.category_id ?? 0;
@@ -1997,7 +2473,7 @@ async function submitImport() {
     } catch { fail++; }
   }
 
-  btn.innerHTML = '<i class="fa fa-upload"></i> Import Sekarang';
+  btn.innerHTML = '<i class="fa fa-upload"></i> Jalankan Import';
   btn.disabled  = false;
   toast(`Import selesai: ${success} soal berhasil${fail ? ', '+fail+' gagal' : ''}!`, fail ? 'error' : 'success');
   if (success > 0) {
@@ -2010,8 +2486,8 @@ async function submitImport() {
 
 function downloadTemplate() {
   const tpl = [
-    {"question_text":"Contoh soal 1?","option_a":"Opsi A","option_b":"Opsi B","option_c":"Opsi C","option_d":"Opsi D","correct_option":"B","explanation":"Karena B adalah jawaban yang benar."},
-    {"question_text":"Contoh soal 2?","option_a":"Opsi A","option_b":"Opsi B","option_c":"Opsi C","option_d":"Opsi D","correct_option":"A","explanation":""}
+    {"question_text":"Contoh soal 1?","option_a":"Opsi A","option_b":"Opsi B","option_c":"Opsi C","option_d":"Opsi D","correct_option":"B","explanation":"Karena B adalah jawaban yang benar.", "image_url":""},
+    {"question_text":"Contoh soal 2?","option_a":"Opsi A","option_b":"Opsi B","option_c":"Opsi C","option_d":"Opsi D","correct_option":"A","explanation":"", "image_url":"https://example.com/img.jpg"}
   ];
   const blob = new Blob([JSON.stringify(tpl, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
@@ -2238,54 +2714,131 @@ async function loadUsers() {
   }
 }
 
-function openUserModal(data=null) {
-  document.getElementById('userModalTitle').textContent = data ? 'Edit Pengguna' : 'Tambah Pengguna';
-  document.getElementById('user-id').value       = data?.id           ?? '';
-  document.getElementById('user-username').value = data?.username     ?? '';
-  document.getElementById('user-name').value     = data?.display_name ?? '';
-  document.getElementById('user-password').value = '';
-  document.getElementById('user-role').value     = data?.role         ?? 'teacher';
-  document.getElementById('user-level').value    = data?.level        ?? 'sd';
-  document.getElementById('user-active').value   = data?.is_active    ?? 1;
-
-  if (data) {
-    document.getElementById('user-password-help').style.display = 'block';
-  } else {
-    document.getElementById('user-password-help').style.display = 'none';
-  }
-
-  userModal.show();
+function openAddUserModal() {
+  document.getElementById('add-user-username').value = '';
+  document.getElementById('add-user-name').value = '';
+  document.getElementById('add-user-password').value = '';
+  document.getElementById('add-user-password-confirm').value = '';
+  document.getElementById('add-user-avatar').value = '';
+  document.getElementById('add-user-avatar-preview').src = 'assets/png/avatar.png';
+  document.getElementById('add-user-role').value = 'teacher';
+  document.getElementById('add-user-level').value = 'sd';
+  document.getElementById('add-user-active').value = 1;
+  handleUserRoleChange('add');
+  addUserModal.show();
 }
 
-function editUser(data) { openUserModal(data); }
+function openEditUserModal(data) {
+  document.getElementById('edit-user-id').value       = data.id;
+  document.getElementById('edit-user-username').value = data.username;
+  document.getElementById('edit-user-name').value     = data.display_name;
+  document.getElementById('edit-user-password').value = '';
+  document.getElementById('edit-user-role').value     = data.role;
+  document.getElementById('edit-user-level').value    = data.level;
+  document.getElementById('edit-user-active').value   = data.is_active;
+  
+  if(data.role !== 'admin' && data.level === 'all') document.getElementById('edit-user-level').value = 'sd';
+  
+  handleUserRoleChange('edit');
+  editUserModal.show();
+}
 
-async function saveUser() {
-  const id = document.getElementById('user-id').value;
-  const username = document.getElementById('user-username').value.trim();
-  const password = document.getElementById('user-password').value;
+function editUser(data) { openEditUserModal(data); }
+
+// Avatar preview logic for Add User
+document.getElementById('add-user-avatar').addEventListener('change', function(e) {
+  if (this.files && this.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      document.getElementById('add-user-avatar-preview').src = ev.target.result;
+    }
+    reader.readAsDataURL(this.files[0]);
+  } else {
+    document.getElementById('add-user-avatar-preview').src = 'assets/png/avatar.png';
+  }
+});
+
+async function saveAddUser() {
+  const username = document.getElementById('add-user-username').value.trim();
+  const name     = document.getElementById('add-user-name').value.trim();
+  const password = document.getElementById('add-user-password').value;
+  const passConf = document.getElementById('add-user-password-confirm').value;
+  const avatarEl = document.getElementById('add-user-avatar');
 
   if (!username) { toast('Username wajib diisi', 'error'); return; }
-  if (!id && !password) { toast('Password wajib diisi untuk user baru', 'error'); return; }
+  if (!password) { toast('Password wajib diisi', 'error'); return; }
+  if (password !== passConf) { toast('Password dan konfirmasi sandi tidak cocok', 'error'); return; }
+
+  // Disable the button and show loading state
+  const btn = document.querySelector('#addUserModal .modal-footer .btn-primary-custom');
+  const prevText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menyimpan...'; }
 
   const fd = new FormData();
-  fd.append('action', id ? 'update' : 'create');
-  if (id) fd.append('id', id);
+  fd.append('action', 'create');
   fd.append('username',     username);
-  fd.append('display_name', document.getElementById('user-name').value.trim());
+  fd.append('display_name', name);
   fd.append('password',     password);
-  fd.append('role',         document.getElementById('user-role').value);
-  fd.append('level',        document.getElementById('user-level').value);
-  fd.append('is_active',    document.getElementById('user-active').value);
+  fd.append('role',         document.getElementById('add-user-role').value);
+  fd.append('level',        document.getElementById('add-user-level').value);
+  fd.append('is_active',    document.getElementById('add-user-active').value);
+  if (avatarEl.files.length > 0) {
+    fd.append('avatar', avatarEl.files[0]);
+  }
+
+  try {
+    const res  = await fetch('api_users.php', {method:'POST', body:fd});
+    const text = await res.text(); // Read as text first to catch non-JSON
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch(e) {
+      toast('Server error: ' + text.substring(0, 100), 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = prevText; }
+      return;
+    }
+    if (json.success) {
+      toast('Pengguna berhasil ditambahkan!');
+      addUserModal.hide();
+      if (dtUser) { dtUser.destroy(); dtUser = null; }
+      document.getElementById('tbody-users').innerHTML = '';
+      loadUsers();
+    } else {
+      toast(json.message || 'Gagal menyimpan', 'error');
+    }
+  } catch(e) {
+    toast('Gagal terhubung ke server: ' + e.message, 'error');
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = prevText; }
+}
+
+async function saveEditUser() {
+  const id       = document.getElementById('edit-user-id').value;
+  const username = document.getElementById('edit-user-username').value.trim();
+  const name     = document.getElementById('edit-user-name').value.trim();
+  const password = document.getElementById('edit-user-password').value;
+
+  if (!username) { toast('Username wajib diisi', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('action', 'update');
+  fd.append('id',           id);
+  fd.append('username',     username);
+  fd.append('display_name', name);
+  fd.append('password',     password);
+  fd.append('role',         document.getElementById('edit-user-role').value);
+  fd.append('level',        document.getElementById('edit-user-level').value);
+  fd.append('is_active',    document.getElementById('edit-user-active').value);
 
   const res  = await fetch('api_users.php', {method:'POST', body:fd});
   const json = await res.json();
   if (json.success) {
-    toast(id ? 'Pengguna diperbarui!' : 'Pengguna ditambahkan!');
-    userModal.hide();
+    toast('Pengguna berhasil diperbarui!');
+    editUserModal.hide();
     if (dtUser) { dtUser.destroy(); dtUser = null; }
     document.getElementById('tbody-users').innerHTML = '';
     loadUsers();
-  } else toast(json.message || 'Gagal menyimpan', 'error');
+  } else toast(json.message || 'Gagal mengubah', 'error');
 }
 
 async function deleteUser(id, username) {
@@ -2363,8 +2916,250 @@ document.getElementById('profile-avatar').addEventListener('change', function(e)
 });
 
 // ================================================================
+//  IMAGES
+// ================================================================
+async function loadImages() {
+  const grid = document.getElementById('images-grid');
+  grid.innerHTML = '<div class="col-12 text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Memuat gambar...</div>';
+  try {
+    const res = await fetch('api_images.php?action=list');
+    const json = await res.json();
+    if (json.success) {
+      grid.innerHTML = '';
+      if (json.data.length === 0) {
+        grid.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="fa fa-image fa-3x mb-3" style="opacity:.2"></i><br>Belum ada gambar yang diunggah.</div>';
+      } else {
+        json.data.forEach(img => {
+          const div = document.createElement('div');
+          div.className = 'col-sm-4 col-md-3 col-lg-2';
+          div.innerHTML = `
+            <div style="aspect-ratio:1; background:#f8fafc; border:1px solid var(--border); border-radius:12px; overflow:hidden; position:relative; cursor:pointer" class="img-card" onclick="openImageAction('${img.url}', '${img.filename}')">
+              <img src="${img.url}" style="width:100%; height:100%; object-fit:cover;">
+              <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.6); color:#fff; font-size:.7rem; padding:.2rem .5rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${img.filename}</div>
+            </div>`;
+          grid.appendChild(div);
+        });
+      }
+    } else {
+      grid.innerHTML = '<div class="col-12 text-center text-danger">Gagal memuat gambar</div>';
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="col-12 text-center text-danger">Terjadi kesalahan</div>';
+  }
+}
+
+async function uploadImage(inputEl) {
+  if (!inputEl.files || inputEl.files.length === 0) return;
+  const file = inputEl.files[0];
+  const fd = new FormData();
+  fd.append('action', 'upload');
+  fd.append('image', file);
+
+  const prevText = inputEl.previousElementSibling.innerHTML;
+  inputEl.previousElementSibling.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Mengunggah...';
+  inputEl.previousElementSibling.disabled = true;
+
+  try {
+    const res = await fetch('api_images.php', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (json.success) {
+      toast('Gambar berhasil diunggah!');
+      loadImages();
+    } else {
+      toast(json.message || 'Gagal mengunggah', 'error');
+    }
+  } catch (e) {
+    toast('Terjadi kesalahan jaringan', 'error');
+  }
+
+  inputEl.previousElementSibling.innerHTML = prevText;
+  inputEl.previousElementSibling.disabled = false;
+  inputEl.value = ''; // reset input
+}
+
+const imageActionModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(document.getElementById('imageActionModal')) : null;
+
+function openImageAction(url, filename) {
+  document.getElementById('img-action-preview').src = url;
+  document.getElementById('img-action-url').value = url;
+  document.getElementById('img-action-filename').value = filename;
+  imageActionModal.show();
+}
+
+function copyImageUrl() {
+  const input = document.getElementById('img-action-url');
+  input.select();
+  document.execCommand('copy');
+  toast('Link gambar disalin!');
+  imageActionModal.hide();
+}
+
+function confirmDeleteImage() {
+  const filename = document.getElementById('img-action-filename').value;
+  document.getElementById('confirm-msg').textContent = `Hapus gambar "${filename}" secara permanen? Jika gambar ini dipakai di sebuah soal, maka tidak akan bisa dimuat lagi.`;
+  document.getElementById('confirm-ok-btn').onclick = async () => {
+    confirmModal.hide();
+    const fd = new FormData();
+    fd.append('action', 'delete');
+    fd.append('filename', filename);
+    const res = await fetch('api_images.php', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (json.success) {
+      toast('Gambar dihapus!');
+      imageActionModal.hide();
+      loadImages();
+    } else toast(json.message || 'Gagal menghapus', 'error');
+  };
+  confirmModal.show();
+}
+
+const imagePickerModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(document.getElementById('imagePickerModal')) : null;
+
+// Fix stacking backdrops for nested modals
+document.getElementById('imagePickerModal').addEventListener('show.bs.modal', function () {
+  setTimeout(() => {
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    if (backdrops.length > 1) {
+      // The last backdrop belongs to the second modal
+      backdrops[backdrops.length - 1].style.zIndex = '1059';
+    }
+  }, 100);
+});
+
+function openImagePicker() {
+  document.getElementById('picker-upload-input').value = '';
+  loadPickerGallery();
+  imagePickerModal.show();
+}
+
+async function loadPickerGallery() {
+  const grid = document.getElementById('picker-gallery-grid');
+  grid.innerHTML = '<div class="col-12 text-center py-4"><i class="fa fa-spinner fa-spin"></i> Memuat galeri...</div>';
+  try {
+    const res = await fetch('api_images.php?action=list');
+    const json = await res.json();
+    if (json.success) {
+      grid.innerHTML = '';
+      if (json.data.length === 0) {
+        grid.innerHTML = '<div class="col-12 text-center text-muted">Galeri kosong. Silakan upload gambar baru.</div>';
+      } else {
+        json.data.forEach(img => {
+          const div = document.createElement('div');
+          div.className = 'col-4 col-md-3';
+          div.innerHTML = `
+            <div style="aspect-ratio:1; background:#f8fafc; border:2px solid transparent; border-radius:10px; overflow:hidden; position:relative; cursor:pointer; transition:all .2s" class="picker-img-card" onclick="selectPickerImage('${img.url}')" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'">
+              <img src="${img.url}" style="width:100%; height:100%; object-fit:cover;">
+            </div>`;
+          grid.appendChild(div);
+        });
+      }
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="col-12 text-center text-danger">Gagal memuat galeri</div>';
+  }
+}
+
+function selectPickerImage(url) {
+  document.getElementById('q-image-url').value = url;
+  imagePickerModal.hide();
+}
+
+async function uploadPickerImage() {
+  const inputEl = document.getElementById('picker-upload-input');
+  const btn = document.getElementById('btn-picker-upload');
+  
+  if (!inputEl.files || inputEl.files.length === 0) {
+    toast('Pilih file gambar terlebih dahulu', 'error');
+    return;
+  }
+  
+  const file = inputEl.files[0];
+  const fd = new FormData();
+  fd.append('action', 'upload');
+  fd.append('image', file);
+
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Mengunggah...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('api_images.php', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (json.success) {
+      toast('Gambar berhasil diunggah!');
+      selectPickerImage(json.url);
+      loadImages(); // Update main media library as well
+    } else {
+      toast(json.message || 'Gagal mengunggah', 'error');
+    }
+  } catch (e) {
+    toast('Terjadi kesalahan jaringan', 'error');
+  }
+
+  btn.innerHTML = '<i class="fa fa-upload"></i> Upload & Pilih';
+  btn.disabled = false;
+}
+
+// ================================================================
 //  UTILS
 // ================================================================
+
+function handleUserRoleChange(prefix) {
+  const role = document.getElementById(prefix + '-user-role').value;
+  const levelSelect = document.getElementById(prefix + '-user-level');
+  const currentVal = levelSelect.value;
+  
+  // Clear all options
+  levelSelect.innerHTML = '';
+  
+  if (role === 'admin') {
+    // Administrator: Only 'all'
+    levelSelect.add(new Option('Semua (All)', 'all'));
+    levelSelect.value = 'all';
+  } else {
+    // Teacher / Student: SD, SMP, SMA
+    levelSelect.add(new Option('SD', 'sd'));
+    levelSelect.add(new Option('SMP', 'smp'));
+    levelSelect.add(new Option('SMA', 'sma'));
+    
+    // Restore previous selection if it's valid, otherwise default to 'sd'
+    if (['sd', 'smp', 'sma'].includes(currentVal)) {
+      levelSelect.value = currentVal;
+    } else {
+      levelSelect.value = 'sd';
+    }
+  }
+}
+async function refreshPackagesList() {
+  const btn = document.getElementById('btn-refresh-pkg');
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin" style="color: var(--primary);"></i>';
+  try {
+    const res = await fetch('api_packages.php');
+    const json = await res.json();
+    if (json.success) {
+      allPackages.length = 0;
+      allPackages.push(...json.data);
+      
+      const select = document.getElementById('import-package');
+      const val = select.value;
+      select.innerHTML = '<option value="">— Pilih paket —</option>';
+      allPackages.forEach(p => {
+        const title = (p.category_name || p.cat_name || 'Tanpa Kategori') + ' — ' + p.name;
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = title;
+        select.appendChild(opt);
+      });
+      select.value = val;
+      toast('Berkas Paket Diperbarui', 'success');
+    } else {
+      toast('Gagal memuat paket', 'error');
+    }
+  } catch (e) {
+    toast('Gagal memperbarui', 'error');
+  }
+  btn.innerHTML = '<i class="fa fa-sync-alt" style="color: var(--primary);"></i> Refresh Paket';
+}
+
 function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -2373,6 +3168,189 @@ function esc(str) {
 const style = document.createElement('style');
 style.textContent = '@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}';
 document.head.appendChild(style);
+
+// ================================================================
+//  KELOLA NILAI
+// ================================================================
+const USER_ROLE_PHP = '<?= $_SESSION['user_role'] ?? '' ?>';
+const USER_LEVEL_PHP = '<?= strtolower($_SESSION['user_level'] ?? 'sd') ?>';
+const remedialModal = new bootstrap.Modal('#remedialModal');
+
+const dtGrades = {};       // cache: {sd: DataTable, smp: ..., sma: ..., teacher: ...}
+let gradesData = {};       // raw data cache per level
+let gradesLoaded = {};     // track which tabs have been loaded
+
+async function loadGrades(level) {
+  level = level || (USER_ROLE_PHP === 'teacher' ? USER_LEVEL_PHP : 'sd');
+
+  // Don't reload if already loaded
+  if (gradesLoaded[level]) return;
+  gradesLoaded[level] = true;
+
+  const tbodyId = USER_ROLE_PHP === 'admin' ? `tbody-grades-${level}` : 'tbody-grades-teacher';
+  const tableId = USER_ROLE_PHP === 'admin' ? `tbl-grades-${level}` : 'tbl-grades-teacher';
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center"><i class="fa fa-spinner fa-spin me-2"></i>Memuat data...</td></tr>';
+
+  try {
+    const url = 'api_grades.php?action=list' + (USER_ROLE_PHP === 'admin' ? '&level=' + level : '');
+    const res  = await fetch(url);
+    const json = await res.json();
+
+    if (!json.success) { toast(json.message || 'Gagal memuat data', 'error'); return; }
+
+    gradesData[level] = json.data;
+    renderGradesTable(tbodyId, tableId, json.data, level);
+
+  } catch(e) {
+    toast('Gagal memuat nilai: ' + e.message, 'error');
+    gradesLoaded[level] = false; // allow retry
+  }
+}
+
+function renderGradesTable(tbodyId, tableId, data, level) {
+  const tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = '';
+
+  if (data.length > 0) {
+    data.forEach((r, i) => {
+      const isRemedial = parseInt(r.is_remedial) === 1;
+      const scoreColor = r.score >= 75 ? '#10b981' : r.score >= 60 ? '#3b82f6' : '#ef4444';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td><strong>${esc(r.player_name || r.display_name || '—')}</strong>
+            ${r.username ? `<br><small class="text-muted">${esc(r.username)}</small>` : ''}
+        </td>
+        <td style="font-size:.85rem">${esc(r.package_name || '—')}</td>
+        <td style="font-size:.85rem">${esc(r.category_name || '—')}</td>
+        <td class="text-center fw-bold" style="font-size:1.1rem;color:${scoreColor}">${r.score}</td>
+        <td class="text-center text-success fw-bold">${r.correct}</td>
+        <td class="text-center text-danger fw-bold">${r.wrong}</td>
+        <td class="text-center">
+          ${isRemedial
+            ? `<span class="badge bg-warning text-dark" title="${esc(r.remedial_note || '')}">Remedial</span>`
+            : '<span class="badge bg-primary">Reguler</span>'}
+        </td>
+        <td style="font-size:.78rem;white-space:nowrap">${r.start_time ? r.start_time.substring(0,16).replace('T',' ') : '—'}</td>
+        <td>
+          ${!isRemedial
+            ? `<button class="btn-icon" style="background:#fef3c7;color:#92400e;" title="Input Remedial"
+                onclick="openRemedialModal(${r.id}, '${esc(r.player_name || r.display_name || '')}', '${esc(r.package_name || '')}', ${r.score})">
+                <i class="fa fa-pen-to-square"></i>
+              </button>`
+            : '<i class="fa fa-lock text-muted" title="Nilai remedial tidak dapat dirubah"></i>'}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Init or refresh DataTable
+  if (dtGrades[level]) {
+    dtGrades[level].destroy();
+    delete dtGrades[level];
+  }
+  dtGrades[level] = $(`#${tableId}`).DataTable({
+    pageLength: 15,
+    columnDefs: [{ orderable: false, targets: [9] }],
+    order: [[4, 'desc']],
+    language: {
+      search: 'Cari:', lengthMenu: 'Tampilkan _MENU_ data',
+      info: 'Menampilkan _START_–_END_ dari _TOTAL_ data',
+      paginate: { previous: '‹', next: '›' },
+      emptyTable: 'Belum ada data nilai'
+    }
+  });
+}
+
+function openRemedialModal(sessionId, studentName, packageName, oldScore) {
+  document.getElementById('remedial-session-id').value   = sessionId;
+  document.getElementById('remedial-student-name').textContent = studentName;
+  document.getElementById('remedial-package-name').textContent = packageName;
+  document.getElementById('remedial-old-score').textContent    = oldScore;
+  document.getElementById('remedial-new-score').value  = '';
+  document.getElementById('remedial-note').value        = '';
+  remedialModal.show();
+}
+
+async function submitRemedial() {
+  const sessionId = document.getElementById('remedial-session-id').value;
+  const newScore  = document.getElementById('remedial-new-score').value;
+  const note      = document.getElementById('remedial-note').value.trim();
+
+  if (newScore === '' || newScore < 0 || newScore > 100) {
+    toast('Nilai harus antara 0–100', 'error'); return;
+  }
+
+  const btn = document.querySelector('#remedialModal .btn-warning');
+  const prevText = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menyimpan...';
+
+  try {
+    const fd = new FormData();
+    fd.append('action',     'remedial');
+    fd.append('session_id', sessionId);
+    fd.append('score',      newScore);
+    fd.append('note',       note);
+    const res  = await fetch('api_grades.php', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (json.success) {
+      toast('Nilai remedial berhasil disimpan!');
+      remedialModal.hide();
+      // Reload all tabs
+      gradesLoaded = {};
+      Object.keys(dtGrades).forEach(k => { dtGrades[k].destroy(); delete dtGrades[k]; });
+      // Reload active tab
+      const activeLevel = USER_ROLE_PHP === 'teacher' ? USER_LEVEL_PHP
+        : (document.querySelector('#gradesTabs .nav-link.active')?.id === 'tab-smp-btn' ? 'smp'
+          : document.querySelector('#gradesTabs .nav-link.active')?.id === 'tab-sma-btn' ? 'sma' : 'sd');
+      loadGrades(activeLevel);
+    } else {
+      toast(json.message || 'Gagal menyimpan', 'error');
+    }
+  } catch(e) {
+    toast('Gagal terhubung ke server', 'error');
+  }
+  btn.disabled = false; btn.innerHTML = prevText;
+}
+
+function exportGrades() {
+  // Collect currently visible table data
+  const level = USER_ROLE_PHP === 'teacher' ? USER_LEVEL_PHP
+    : (document.querySelector('#gradesTabs .nav-link.active')?.id === 'tab-smp-btn' ? 'smp'
+      : document.querySelector('#gradesTabs .nav-link.active')?.id === 'tab-sma-btn' ? 'sma' : 'sd');
+  const data = gradesData[level] || gradesData[USER_LEVEL_PHP] || [];
+  if (!data.length) { toast('Tidak ada data untuk diexport', 'error'); return; }
+
+  const headers = ['No','Nama','Username','Paket','Mata Pelajaran','Level','Nilai','Benar','Salah','Tipe','Waktu'];
+  const rows = data.map((r, i) => [
+    i+1,
+    r.player_name || r.display_name || '',
+    r.username || '',
+    r.package_name || '',
+    r.category_name || '',
+    r.level || '',
+    r.score,
+    r.correct,
+    r.wrong,
+    parseInt(r.is_remedial) ? 'Remedial' : 'Reguler',
+    (r.start_time || '').substring(0, 16)
+  ]);
+
+  const csv = [headers, ...rows].map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `nilai-${level}-${new Date().toISOString().substring(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('File CSV berhasil diexport!');
+}
 </script>
 </body>
 </html>

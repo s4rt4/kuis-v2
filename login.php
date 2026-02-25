@@ -9,7 +9,7 @@ if (isset($_SESSION['user_id'])) {
         header("Location: admin.php");
         exit;
     } else {
-        header("Location: index.php");
+        header("Location: student.php");
         exit;
     }
 }
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($user['role'] === 'admin' || $user['role'] === 'teacher') {
                 header("Location: admin.php");
             } else {
-                header("Location: index.php");
+                header("Location: student.php");
             }
             exit;
         } else {

@@ -51,7 +51,10 @@ if ($action==='update') {
       ':so'=>intval($_POST['sort_order']),':exp'=>$explanation,':id'=>$id
     ];
 
-    if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
+    if (isset($_POST['image_url'])) {
+        $image_url_update = ", image_url=:img";
+        $params[':img'] = $_POST['image_url'] === '' ? null : $_POST['image_url'];
+    } elseif (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
         $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
         if (in_array(strtolower($ext), ['jpg','jpeg','png','gif','webp'])) {
             $filename = 'q_' . time() . '_' . rand(100,999) . '.' . $ext;

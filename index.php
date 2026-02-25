@@ -9,6 +9,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Kuis Pintar — Belajar Seru!</title>
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -49,7 +50,6 @@
       z-index: 1;
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 2rem 1rem;
@@ -76,66 +76,77 @@
 
     /* === LOTTIE WELCOME === */
     .welcome-lottie {
-      width: 180px;
-      height: 180px;
-      margin-bottom: 1.5rem;
       opacity: 0;
       filter: drop-shadow(0 0 20px rgba(245,200,66,.3));
     }
 
-    /* === LEVEL BUTTONS === */
-    .level-row {
+    /* === CAROUSEL DECORATION === */
+    .carousel-wrapper {
       display: flex;
-      gap: 2rem;
-      flex-wrap: wrap;
-      justify-content: center;
+      align-items: center;
+      gap: 1.5rem;
       margin-bottom: 2rem;
     }
 
+    .level-viewport {
+      position: relative;
+      width: clamp(260px, 45vw, 320px);
+      height: 300px; /* fixed height for bounding box */
+      display: flex;
+      justify-content: center;
+    }
+
     .level-card {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: .75rem;
       cursor: pointer;
       text-decoration: none;
-      opacity: 0;
-      transform: translateY(40px);
+      opacity: 0; /* managed by JS */
+      pointer-events: none; /* managed by JS */
+      transform: translateX(100px); /* managed by JS */
+    }
+    .level-card.active {
+      pointer-events: auto;
     }
 
-    .level-card:hover .btn-img { transform: scale(1.08) translateY(-6px); }
-    .level-card:hover .level-label { color: var(--gold); }
-
-    .btn-img {
-      width: clamp(140px, 22vw, 200px);
-      height: auto;
-      transition: transform .35s cubic-bezier(.34,1.56,.64,1);
-      filter: drop-shadow(0 8px 24px rgba(0,0,0,.5));
+    .carousel-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      color: var(--gold);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(4px);
+      opacity: 0; /* Entrance animation */
+      transform: translateY(20px);
+    }
+    .carousel-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: var(--gold);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(245, 200, 66, 0.3);
+    }
+    .carousel-btn:active {
+      transform: scale(0.95);
     }
 
-    /* glows per jenjang */
-    .level-card.sd:hover  .btn-img { filter: drop-shadow(0 8px 30px var(--glow-sd)); }
-    .level-card.smp:hover .btn-img { filter: drop-shadow(0 8px 30px var(--glow-smp)); }
-    .level-card.sma:hover .btn-img { filter: drop-shadow(0 8px 30px var(--glow-sma)); }
-
-    .level-label {
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.3rem;
-      color: var(--cream);
-      transition: color .25s;
-      letter-spacing: 1px;
-    }
-
-    /* === SHELF DECORATION === */
-    .shelf-bar {
-      width: min(700px, 90vw);
-      height: 14px;
-      background: linear-gradient(180deg, var(--wood-light), var(--wood));
-      border-radius: 4px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.5);
-      margin-top: .5rem;
-      opacity: 0;
-    }
+    /* specific shadows */
+    .sd .btn-img { filter: drop-shadow(0 8px 30px var(--glow-sd)); }
+    .smp .btn-img { filter: drop-shadow(0 8px 30px var(--glow-smp)); }
+    .sma .btn-img { filter: drop-shadow(0 8px 30px var(--glow-sma)); }
 
     /* === FOOTER NOTE === */
     .footer-note {
@@ -165,35 +176,53 @@
 
 <canvas id="stars-canvas"></canvas>
 
-<div class="page-wrap">
-  <!-- Welcome Lottie -->
-  <div class="welcome-lottie" id="lottie-welcome"></div>
+<div class="page-wrap container">
+  <div class="row w-100 align-items-center">
+    
+    <!-- Bagian Kiri: Teks & Animasi -->
+    <div class="col-md-6 d-flex flex-column align-items-center text-center mb-5 mb-md-0">
+      <h1 class="site-title">✨ Kuis Pintar ✨</h1>
+      <p class="site-subtitle">Pilih jenjangmu dan mulai belajar seru!</p>
 
-  <h1 class="site-title text-center">✨ Kuis Pintar ✨</h1>
-  <p class="site-subtitle text-center">Pilih jenjangmu dan mulai belajar seru!</p>
+      <!-- Welcome Lottie (Diperbesar) -->
+      <div class="welcome-lottie" id="lottie-welcome" style="width: 250px; height: 250px; margin-bottom: 2rem;"></div>
 
-  <!-- Level Buttons -->
-  <div class="level-row">
-    <a href="subjects.php?level=sd" class="level-card sd">
-      <img src="assets/png/button_sd.png" alt="SD" class="btn-img" onerror="this.src='assets/img/button_sd.png'">
-      <span class="level-label">Sekolah Dasar</span>
-    </a>
-    <a href="subjects.php?level=smp" class="level-card smp">
-      <img src="assets/png/button_smp.png" alt="SMP" class="btn-img" onerror="this.src='assets/img/button_smp.png'">
-      <span class="level-label">Sekolah Menengah Pertama</span>
-    </a>
-    <a href="subjects.php?level=sma" class="level-card sma">
-      <img src="assets/png/button_sma.png" alt="SMA" class="btn-img" onerror="this.src='assets/img/button_sma.png'">
-      <span class="level-label">Sekolah Menengah Atas</span>
-    </a>
+      <p class="footer-note" id="footer-note" style="margin-top: 1rem;">
+        Guru atau Admin? <a href="login.php">Masuk ke Panel →</a>
+      </p>
+    </div>
+
+    <!-- Bagian Kanan: Carousel -->
+    <div class="col-md-6 d-flex justify-content-center">
+      <div class="carousel-wrapper" style="margin-bottom: 0;">
+        <!-- Prev Arrow -->
+        <button class="carousel-btn" id="btn-prev" aria-label="Sebelumnya">
+          <i class="fa fa-chevron-left"></i>
+        </button>
+
+        <div class="level-viewport">
+          <a href="subjects.php?level=sd" class="level-card sd active" data-index="0">
+            <img src="assets/png/button_sd.png" alt="SD" class="btn-img" onerror="this.src='assets/img/button_sd.png'">
+            <span class="level-label">Sekolah Dasar</span>
+          </a>
+          <a href="subjects.php?level=smp" class="level-card smp" data-index="1">
+            <img src="assets/png/button_smp.png" alt="SMP" class="btn-img" onerror="this.src='assets/img/button_smp.png'">
+            <span class="level-label">Sekolah Menengah Pertama</span>
+          </a>
+          <a href="subjects.php?level=sma" class="level-card sma" data-index="2">
+            <img src="assets/png/button_sma.png" alt="SMA" class="btn-img" onerror="this.src='assets/img/button_sma.png'">
+            <span class="level-label">Sekolah Menengah Atas</span>
+          </a>
+        </div>
+
+        <!-- Next Arrow -->
+        <button class="carousel-btn" id="btn-next" aria-label="Selanjutnya">
+          <i class="fa fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
   </div>
-
-  <!-- Shelf decoration -->
-  <div class="shelf-bar" id="shelf-bar"></div>
-
-  <p class="footer-note" id="footer-note">
-    Guru atau Admin? <a href="login.php">Masuk ke Panel →</a>
-  </p>
 </div>
 
 <!-- GSAP lokal -->
@@ -267,21 +296,101 @@ window.addEventListener('DOMContentLoaded', ()=>{
   tl.to('#lottie-welcome', { opacity:1, duration:.6 })
     .to('.site-title',    { opacity:1, y:0, duration:.7 }, '-=.3')
     .to('.site-subtitle', { opacity:1, duration:.5 }, '-=.4')
-    .to('.level-card',    { opacity:1, y:0, duration:.6, stagger:.15 }, '-=.2')
-    .to('#shelf-bar',     { opacity:1, duration:.5 }, '-=.3')
+    .to('.carousel-btn',  { opacity:1, y:0, duration:.5, stagger:.1 }, '-=.2')
     .to('#footer-note',   { opacity:1, duration:.4 }, '-=.2');
 
+  const cards = document.querySelectorAll('.level-card');
+  let currentIndex = 0;
+  let isAnimating = false;
+
+  // Initial setup: position all cards. 0 is center, left is -100px, right is 100px
+  gsap.set(cards, { opacity: 0, x: 100, scale: 0.9 });
+  // Show the first card immediately after loader
+  gsap.to(cards[0], { opacity: 1, x: 0, scale: 1, duration: 0.8, ease: "back.out(1.2)", delay: 0.8 });
+  cards[0].classList.add('active');
+
+  function goToSlide(newIndex, direction) {
+    if (isAnimating || newIndex === currentIndex) return;
+    isAnimating = true;
+
+    const currentCard = cards[currentIndex];
+    const nextCard = cards[newIndex];
+
+    // Remove active class to disable clicks during transition
+    currentCard.classList.remove('active');
+    
+    // Animate out current
+    const outX = direction === 'next' ? -100 : 100;
+    const inX = direction === 'next' ? 100 : -100;
+
+    gsap.to(currentCard, {
+      opacity: 0, x: outX, scale: 0.9, duration: 0.5, ease: "power2.inOut"
+    });
+
+    // Prepare next card
+    gsap.set(nextCard, { opacity: 0, x: inX, scale: 0.9 });
+    
+    // Animate in next
+    gsap.to(nextCard, {
+      opacity: 1, x: 0, scale: 1, duration: 0.6, ease: "back.out(1)", delay: 0.1,
+      onComplete: () => {
+        nextCard.classList.add('active');
+        isAnimating = false;
+      }
+    });
+
+    currentIndex = newIndex;
+  }
+
+  document.getElementById('btn-next').addEventListener('click', () => {
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= cards.length) nextIndex = 0; // loop
+    goToSlide(nextIndex, 'next');
+  });
+
+  document.getElementById('btn-prev').addEventListener('click', () => {
+    let prevIndex = currentIndex - 1;
+    if (prevIndex < 0) prevIndex = cards.length - 1; // loop
+    goToSlide(prevIndex, 'prev');
+  });
+
+  // Swipe support for mobile
+  let touchStartX = 0;
+  const viewport = document.querySelector('.level-viewport');
+  
+  viewport.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, {passive: true});
+
+  viewport.addEventListener('touchend', e => {
+    if (isAnimating) return;
+    const touchEndX = e.changedTouches[0].screenX;
+    if (touchEndX < touchStartX - 40) {
+      document.getElementById('btn-next').click();
+    } else if (touchEndX > touchStartX + 40) {
+      document.getElementById('btn-prev').click();
+    }
+  }, {passive: true});
+
   /* Hover sound-like visual feedback */
-  document.querySelectorAll('.level-card').forEach(card => {
+  cards.forEach(card => {
     card.addEventListener('mouseenter', () => {
-      gsap.to(card.querySelector('.btn-img'), {
-        rotation: gsap.utils.random(-3,3), duration:.2, ease:'power1.out'
-      });
+      if(card.classList.contains('active')) {
+        gsap.to(card.querySelector('.btn-img'), {
+          scale: 1.08, y: -6, rotation: gsap.utils.random(-3,3), duration:.2, ease:'power1.out'
+        });
+        gsap.to(card.querySelector('.level-label'), { color: 'var(--gold)', duration: .2 });
+      }
     });
     card.addEventListener('mouseleave', () => {
-      gsap.to(card.querySelector('.btn-img'), { rotation:0, duration:.3, ease:'elastic.out(1,.5)' });
+      gsap.to(card.querySelector('.btn-img'), { scale: 1, y: 0, rotation:0, duration:.3, ease:'elastic.out(1,.5)' });
+      gsap.to(card.querySelector('.level-label'), { color: 'var(--cream)', duration: .3 });
     });
     card.addEventListener('click', e => {
+      if(!card.classList.contains('active')) {
+        e.preventDefault();
+        return;
+      }
       e.preventDefault();
       const href = card.href;
       gsap.to('.page-wrap', {
